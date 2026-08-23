@@ -1,8 +1,10 @@
 # Label Audit Protocol
 
-**Status:** protocol, 2026-08-09
+**Status:** protocol, 2026-08-09 — **amended by [03](./03-what-the-released-dataset-contains.md) §6**
 **Depends on:** [01 — How EDINET-Bench's Fraud Labels Were Made](./01-how-edinet-bench-labels-were-made.md)
 **Effort:** ~90 minutes of reading, plus setup
+
+> **Read [03](./03-what-the-released-dataset-contains.md) first.** Three things in this protocol did not survive contact with the released dataset: step 1 is a reconstruction job rather than a column read, the blinding scheme needs decoys because `explanation` was never actually shipped, and the interval has to be clustered by company. The rubric in §3 is unaffected.
 
 ---
 
@@ -175,7 +177,7 @@ Stated plainly, because it will be asked:
 4. Classify (~90 min)
 5. Join labels back; compute bracketed precision + Wilson interval + D-rate
 6. Inspect the no-keyword subset for failure mode
-7. Write up as `03-label-audit-results.md`
+7. Write up as `04-label-audit-results.md`
 8. *Then* decide whether steps 3–5 of §7 are worth doing
 
 Step 7 is a deliverable in its own right, whatever the number turns out to be. A clean measurement that says "the labels are fine" is just as publishable as one that says they aren't — and it's the prerequisite for taking any later score seriously.
