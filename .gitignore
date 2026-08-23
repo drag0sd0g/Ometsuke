@@ -1,0 +1,10 @@
+PROJECT-*.md
+
+# Archived EDINET data — large, regenerable only while EDINET still serves it.
+# Kept out of git deliberately; see docs/03 §3.
+data/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
