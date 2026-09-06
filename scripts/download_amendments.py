@@ -68,6 +68,7 @@ def main() -> int:
     parser.add_argument("--workers", type=int, default=3)
     parser.add_argument("--sleep", type=float, default=0.2)
     parser.add_argument("--limit", type=int, default=None, help="stop after N amendments (smoke test)")
+    parser.add_argument("--map", default="amendment-map.csv", help="CSV in data/ naming the amendments")
     args = parser.parse_args()
 
     key = os.environ.get("EDINET_KEY") or os.environ.get("EDINET_API_KEY")
@@ -75,7 +76,7 @@ def main() -> int:
         print("EDINET_KEY is not set", file=sys.stderr)
         return 2
 
-    rows = list(csv.DictReader((DATA / "amendment-map.csv").open(encoding="utf-8")))
+    rows = list(csv.DictReader((DATA / args.map).open(encoding="utf-8")))
     doc_ids = sorted({r["amendment_doc_id"] for r in rows})
     if args.limit:
         doc_ids = doc_ids[: args.limit]
