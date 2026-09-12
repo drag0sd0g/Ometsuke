@@ -1,0 +1,30 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# The test suite is deliberately offline: it uses a deterministic stub model and
+# temporary SQLite files, so CI never needs an API key, never spends money, and cannot
+# be broken by the upstream dataset changing. The network-dependent path — resolving
+# the Hugging Face revision — is exercised the first time a split is fetched locally.
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint
+        run: uv run ruff check src tests
+
+      - name: Known-answer tests
+        run: uv run pytest -q

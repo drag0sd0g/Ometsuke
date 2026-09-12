@@ -117,9 +117,27 @@ def test_scoring_refuses_items_with_no_ground_truth(conn):
 
 
 def test_the_run_row_records_provenance(conn):
+    prov = {"repo": "SakanaAI/EDINET-Bench", "revision": "b19a8c28" * 5,
+            "file_sha256": "a" * 64, "rows": 865}
     run_id = runner.record(conn, ITEMS, StubModel(), build_prompt, split="dev",
-                           dataset_ver="hf:abc123", config={"temperature": 0})
-    row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (run_id,)).fetchone()
+                           dataset_ver="SakanaAI/EDINET-Bench@b19a8c28b19a",
+                           config={"temperature": 0}, provenance=prov)
+    row = conn.execute("SELECT * FROM runs WHERE run_id = ?", (row_id := run_id,)).fetchone()
     assert row["split"] == "dev"
-    assert row["dataset_ver"] == "hf:abc123"
+    assert row["dataset_ver"] == "SakanaAI/EDINET-Bench@b19a8c28b19a"
     assert row["config_hash"] and row["git_sha"] and row["finished_at"]
+
+    started = events.read(conn, row_id, kind=events.RUN_STARTED)[0]["payload"]
+    assert started["provenance"]["file_sha256"] == "a" * 64, (
+        "the exact bytes scored must be recoverable from the log"
+    )
+
+
+def test_replay_carries_the_source_provenance_forward(conn):
+    """A replayed run must not lose track of which data produced it."""
+    prov = {"repo": "SakanaAI/EDINET-Bench", "revision": "c" * 40, "file_sha256": "b" * 64}
+    run_id = runner.record(conn, ITEMS, StubModel(), build_prompt, split="dev",
+                           dataset_ver="pinned", provenance=prov)
+    replay_id = runner.replay(conn, run_id)
+    started = events.read(conn, replay_id, kind=events.RUN_STARTED)[0]["payload"]
+    assert started["provenance"] == prov

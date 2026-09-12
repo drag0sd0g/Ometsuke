@@ -42,7 +42,11 @@ def config_hash(config: dict[str, Any]) -> str:
 
 
 def start_run(
-    conn: sqlite3.Connection, split: str, dataset_ver: str, config: dict[str, Any]
+    conn: sqlite3.Connection,
+    split: str,
+    dataset_ver: str,
+    config: dict[str, Any],
+    provenance: dict[str, Any] | None = None,
 ) -> str:
     run_id = uuid.uuid4().hex[:16]
     conn.execute(
@@ -51,8 +55,15 @@ def start_run(
         (run_id, dataset_ver, split, config_hash(config), git_sha(),
          dt.datetime.now(dt.UTC).isoformat()),
     )
-    events.append(conn, run_id, events.RUN_STARTED,
-                  {"split": split, "dataset_ver": dataset_ver, "config": config})
+    events.append(conn, run_id, events.RUN_STARTED, {
+        "split": split,
+        "dataset_ver": dataset_ver,
+        "config": config,
+        # The revision and the SHA-256 of the bytes actually scored. `dataset_ver` is the
+        # readable summary; this is what settles an argument about which rows a number
+        # came from, and it survives the upstream repo changing underneath us.
+        "provenance": provenance or {},
+    })
     return run_id
 
 
@@ -71,10 +82,11 @@ def record(
     split: str,
     dataset_ver: str = "unknown",
     config: dict[str, Any] | None = None,
+    provenance: dict[str, Any] | None = None,
 ) -> str:
     """Call the model once per item, writing every prompt and response into the log."""
     config = {"model": model.name, **(config or {})}
-    run_id = start_run(conn, split, dataset_ver, config)
+    run_id = start_run(conn, split, dataset_ver, config, provenance=provenance)
     ok = failed = 0
 
     for item in items:
@@ -134,8 +146,11 @@ def replay(
         raise KeyError(f"no such run: {source_run_id}")
 
     original_config = events.read(conn, source_run_id, kind=events.RUN_STARTED)[0]["payload"]
-    run_id = start_run(conn, source["split"], source["dataset_ver"],
-                       {**original_config["config"], "mode": mode, "source_run": source_run_id})
+    run_id = start_run(
+        conn, source["split"], source["dataset_ver"],
+        {**original_config["config"], "mode": mode, "source_run": source_run_id},
+        provenance=original_config.get("provenance"),
+    )
 
     ok = failed = 0
     for event in events.read(conn, source_run_id, kind=events.MODEL_CALL_COMPLETED):

@@ -51,8 +51,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "run":
         rows = dataset.load(args.split, limit=args.limit)
+        source = "train" if args.split == "dev" else args.split
+        prov = dataset.provenance(source)
         run_id = runner.record(conn, rows, _model(args.model), prompts.build,
-                               split=args.split, dataset_ver=dataset.REPO)
+                               split=args.split,
+                               dataset_ver=dataset.version_string(prov),
+                               provenance=prov)
         print(run_id)
 
     elif args.command == "replay":

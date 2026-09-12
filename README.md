@@ -1,5 +1,7 @@
 # Ometsuke
 
+[![CI](https://github.com/drag0sd0g/Ometsuke/actions/workflows/ci.yml/badge.svg)](https://github.com/drag0sd0g/Ometsuke/actions/workflows/ci.yml)
+
 <img width="657" height="847" alt="ometsuke" src="https://github.com/user-attachments/assets/fa872a02-86c7-4eeb-bcf9-37669a963af1" />
 
 **大目付** — the senior inspectorate of the Edo period.
