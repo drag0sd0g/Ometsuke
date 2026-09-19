@@ -16,11 +16,19 @@
 #                   invite a reader to wonder whether they mattered.
 #   num_ctx 131072  the whole filing fits: text is ~27k tokens at p50 and ~62k at the
 #                   observed maximum. Truncation is never silently required.
-#   num_predict 1024  enough for a verdict with evidence spans. The base model is a
-#                   reasoning model; on a small budget it spends the whole allowance
-#                   thinking and returns an empty response. Thinking is suppressed at
-#                   call time via the API's `think: false` rather than here, so that the
-#                   harness controls it explicitly and records that it did.
+#   num_predict 3072  room for a verdict with evidence spans, sized from measurement
+#                   rather than taste. At 1024, 12 of 61 dev items hit the cap — and the
+#                   truncated ones were nearly twice as likely to carry a fraud label
+#                   (41.7% vs 22.4%), because the model writes more about filings it
+#                   finds suspicious. A budget that clips long answers therefore drops
+#                   positives preferentially and silently flatters the score. The largest
+#                   answer that *completed* was 989 tokens, i.e. the distribution was
+#                   pressed against the ceiling, not tailing off below it. Unused budget
+#                   costs nothing, so this is deliberately generous.
+#                   The base model is also a reasoning model; on a small budget it spends
+#                   the whole allowance thinking and returns an empty response. Thinking
+#                   is suppressed at call time via the API's `think: false` rather than
+#                   here, so the harness controls it explicitly and records that it did.
 #
 # WEIGHTS. This file names a tag, and tags move. The identity that matters is the blob:
 #
@@ -41,4 +49,4 @@ PARAMETER seed 42
 PARAMETER top_p 1
 PARAMETER top_k 0
 PARAMETER num_ctx 131072
-PARAMETER num_predict 1024
+PARAMETER num_predict 3072

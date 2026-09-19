@@ -76,17 +76,31 @@ be introduced silently.**
 |---|---|
 | Prefill | 782 tok/s |
 | Generation | 49 tok/s |
-| Per item, full text | ~40–60 s |
+| Output per item | ~690 tokens median, 1,626 max observed |
 
 | Run | Items | Estimate |
 |---|---:|---|
-| Dev subset, structured fields | 50 | ~8 min |
+| Dev subset, structured fields | 61 | **25 min** (measured) |
+| Full dataset, structured fields | 1,089 | ~7 h |
 | Test split, full text | 224 | ~3 h |
 | Full dataset, full text | 1,089 | ~15 h — one overnight run |
 
-**Hazard:** `qwen3.5-122b` is a reasoning model. On a 64-token output budget it consumed
-the entire budget thinking and returned an empty response. The harness must budget for
-thinking tokens or suppress them. Hit mid-sweep, this produces a night of blank verdicts.
+Runs are sequential; the client issues one request at a time. Concurrency is the
+untested lever, since generation is bandwidth-bound and parallel requests would amortise
+the same weight reads.
+
+**Two hazards, both met in practice:**
+
+`qwen3.5-122b` is a reasoning model. On a 64-token output budget it consumed the entire
+budget thinking and returned an empty response. Thinking is suppressed via `think: false`
+on every call.
+
+**An output budget that clips long answers drops positives preferentially.** At
+`num_predict 1024`, 12 of 61 dev items hit the cap — and those 12 carried a 41.7% fraud
+rate against 22.4% among the items that completed, because the model writes more about
+filings it finds suspicious. A harness that dropped them silently would have scored a
+subset depleted of the positive class. Budget is now 3,072 against a 1,626-token
+observed maximum.
 
 ---
 
@@ -124,7 +138,7 @@ same items, and **always resample companies, not filings** (see
 
 | | | Needs |
 |---|---|---|
-| A | **Classical forensic-accounting features** — Beneish M-Score, Dechow F-Score, Benford's Law, accruals — over `bs`/`pl`/`cf`. Not previously run on this benchmark. Must control for filing era, since a feature set encoding era will look better than it is. | No model calls |
+| A | **Classical forensic-accounting features.** Beneish's M-score is **done** — ROC-AUC 0.436, below chance, worse than a date-only control on the same rows ([03](./03-forensic-accounting-features.md)). Dechow F-Score, Benford's Law and Jones-model accruals remain. | No model calls |
 | B | **Open-weight baseline** on dev and test splits, company-clustered intervals | Local inference |
 | C | **Era ablation** — how much of a text-based score is recoverable from era cues alone | Local inference |
 | D | **Japanese-prompt experiment** — the published eval prompt is English over a Japanese source | Local inference |
@@ -135,8 +149,14 @@ same items, and **always resample companies, not filings** (see
 
 - What is the real base rate of fraud-corrected annual reports among Japanese listed
   companies? Computable from the local metadata archive.
-- Do parse failures correlate with filing year, company size, or accounting standard?
-  (~20% were dropped during dataset construction.)
+- ~~Do parse failures correlate with filing year or the label?~~ **Partly answered**
+  ([03](./03-forensic-accounting-features.md) §1): among training rows, statements parse
+  completely for 68.3%, and those rows carry a 13-point higher fraud rate and a 1.6-year
+  later mean fiscal year. Whether company size or accounting standard also drive it is
+  still open.
+- Why does the accruals index run backwards? The 循環取引 hypothesis in
+  [03](./03-forensic-accounting-features.md) §5 is checkable against the recovered
+  amendment texts.
 - Can an out-of-time split have a positive class at all, given the right-censoring in
   [02](./02-what-the-dataset-contains.md) §2?
 

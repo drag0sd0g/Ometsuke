@@ -45,6 +45,18 @@ recovered from EDINET, only **35%** contain 不適切な会計処理 / 粉飾 / 
 anywhere — and 誤記 / 誤植, the obvious words for a clerical correction, appear in
 **none of them**.
 
+**The standard quantitative screen does not work here.** Beneish's M-score — eight
+ratios, the textbook earnings-manipulation detector — scores **ROC-AUC 0.436** on the
+68.3% of training filings where it can be computed: below chance, with the interval
+excluding 0.5, and significantly *worse* than ranking those same filings by date alone.
+Not an era artifact and not outliers. The accruals index carries the largest coefficient
+in the composite and is the most inverted of the eight.
+→ [docs/03](docs/03-forensic-accounting-features.md)
+
+**Whether a filing can be scored at all depends on its label.** Financial statements
+parse completely for 68.3% of rows, and those rows carry a **13-point higher fraud rate**
+and a 1.6-year later mean fiscal year than the ones that drop out.
+
 → [docs/02](docs/02-what-the-dataset-contains.md), with reproduction steps
 
 ---
@@ -55,7 +67,8 @@ anywhere — and 誤記 / 誤植, the obvious words for a clerical correction, a
 |---|---|
 | [`docs/00`](docs/00-project-charter.md) | the charter — what the project claims, what it refuses to claim, and the constraints that fix its scope |
 | [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how EDINET-Bench's fraud labels were built, verified against the shipped code |
-| [`docs/02`](docs/02-what-the-dataset-contains.md) | the findings above, with reproduction steps |
+| [`docs/02`](docs/02-what-the-dataset-contains.md) | what the dataset contains, with reproduction steps |
+| [`docs/03`](docs/03-forensic-accounting-features.md) | Beneish's M-score on this benchmark, and why it fails |
 | `scripts/` | reconstruction of the amendment → filing mapping the dataset omits: a ten-year sweep of EDINET's document API, verified against the XBRL element Sakana used (15/15 agreement), recovering **396 of 534** positives — the rest lost to EDINET's ten-year deletion policy |
 | `src/ometsuke/` | the harness: an append-only SQLite event log, content-addressed prompts and responses, `record` / `replay` / `rescore`, metrics with company-clustered bootstrap intervals |
 
@@ -75,7 +88,7 @@ be byte-identical across repetitions; and a malformed response must raise rather
 silently dropped, since silent drops score an easier subset than the one advertised.
 
 ```bash
-uv run ometsuke run --split dev --model stub   # record
+uv run ometsuke run --split dev                # record, on local weights
 uv run ometsuke replay <run_id>                # re-derive, no model calls
 uv run ometsuke score <run_id> --split dev     # AUC and MCC, clustered intervals
 uv run pytest
