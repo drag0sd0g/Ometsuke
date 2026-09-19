@@ -83,11 +83,18 @@ def record(
     dataset_ver: str = "unknown",
     config: dict[str, Any] | None = None,
     provenance: dict[str, Any] | None = None,
+    max_consecutive_failures: int | None = 5,
 ) -> str:
-    """Call the model once per item, writing every prompt and response into the log."""
+    """Call the model once per item, writing every prompt and response into the log.
+
+    `max_consecutive_failures` aborts a run whose every item is failing identically — a
+    wrong model name, a server that went away, an output budget too small to reach a
+    verdict. The alternative is discovering at breakfast that a fifteen-hour sweep
+    produced nothing. Set it to None to disable.
+    """
     config = {"model": model.name, **(config or {})}
     run_id = start_run(conn, split, dataset_ver, config, provenance=provenance)
-    ok = failed = 0
+    ok = failed = consecutive = 0
 
     for item in items:
         item_id = item["doc_id"]
@@ -115,10 +122,21 @@ def record(
             verdict = parse_verdict(response.text)
         except VerdictParseError as exc:
             failed += 1
+            consecutive += 1
             events.append(conn, run_id, events.ITEM_FAILED,
-                          {"reason": str(exc), "response_hash": response_hash},
+                          {"reason": str(exc), "response_hash": response_hash,
+                           "stop_reason": response.stop_reason},
                           item_id=item_id, step_idx=0)
+            if max_consecutive_failures is not None and consecutive >= max_consecutive_failures:
+                finish_run(conn, run_id, {"mode": "record", "items_ok": ok,
+                                          "items_failed": failed, "aborted": True,
+                                          "abort_reason": f"{consecutive} consecutive failures"})
+                raise RuntimeError(
+                    f"aborting run {run_id}: {consecutive} consecutive items failed to "
+                    f"produce a verdict. Last reason: {exc}"
+                ) from exc
             continue
+        consecutive = 0
         ok += 1
         events.append(conn, run_id, events.PREDICTION_EMITTED, {
             "score": verdict.score, "label": verdict.label,

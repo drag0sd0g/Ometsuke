@@ -1,0 +1,44 @@
+# The evaluation model. Build with:
+#
+#   ollama create ometsuke-eval -f models/ometsuke-eval.Modelfile
+#
+# Derived from qwen3.5-122b-ctx, which is a chat model with sampling defaults that are
+# fine for conversation and wrong for measurement. Every parameter below is set because
+# leaving it at the inherited value would make a scored run depend on something this
+# repository does not record.
+#
+#   temperature 0   greedy decoding. The base model ships temperature 1, which makes the
+#                   verdict a sample from a distribution rather than a function of the
+#                   prompt.
+#   seed 42         fixed, so the sampler is not a hidden input.
+#   top_p 1         neutralised, along with top_k 0. Under greedy decoding both are
+#   top_k 0         inert, but inherited values of 0.95 and 20 sitting in the config
+#                   invite a reader to wonder whether they mattered.
+#   num_ctx 131072  the whole filing fits: text is ~27k tokens at p50 and ~62k at the
+#                   observed maximum. Truncation is never silently required.
+#   num_predict 1024  enough for a verdict with evidence spans. The base model is a
+#                   reasoning model; on a small budget it spends the whole allowance
+#                   thinking and returns an empty response. Thinking is suppressed at
+#                   call time via the API's `think: false` rather than here, so that the
+#                   harness controls it explicitly and records that it did.
+#
+# WEIGHTS. This file names a tag, and tags move. The identity that matters is the blob:
+#
+#   sha256-93c83617a40560a61cda911ee327efdb5b5fbd39caa8b777a4ec565c0af1af3d
+#
+# The client records that digest in every run's config, so a number can be traced to the
+# exact weights that produced it. Verify with `ollama show --modelfile ometsuke-eval`.
+#
+# WHAT THIS DOES NOT BUY. Temperature 0 does not make generation bit-reproducible — GPU
+# scheduling and batching still vary between runs. A pinned model gives an *identifiable
+# configuration*, not reproducible sampling. Reproducibility comes from replaying
+# recorded responses; see the harness notes in README.md.
+
+FROM qwen3.5-122b-ctx:latest
+
+PARAMETER temperature 0
+PARAMETER seed 42
+PARAMETER top_p 1
+PARAMETER top_k 0
+PARAMETER num_ctx 131072
+PARAMETER num_predict 1024

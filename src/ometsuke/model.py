@@ -65,6 +65,18 @@ def parse_verdict(text: str) -> FraudVerdict:
     strict about content.
     """
     candidate = text.strip()
+    if not candidate:
+        # Distinguished from malformed JSON because the cause and the fix are different.
+        # A reasoning model on a bounded output budget spends the whole allowance
+        # thinking and emits nothing; the accompanying `stop_reason` on the
+        # model_call_completed event says which it was ("length" means the budget ran
+        # out). Reported this way so a sweep that returns nothing is diagnosable from
+        # the log alone.
+        raise VerdictParseError(
+            "model returned an empty response; see stop_reason on the accompanying "
+            "model_call_completed event ('length' means the output budget was exhausted "
+            "before a verdict was produced)"
+        )
     match = _FENCE.search(candidate)
     if match:
         candidate = match.group(1)

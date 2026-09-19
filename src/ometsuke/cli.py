@@ -12,15 +12,22 @@ from . import dataset, db, prompts, runner
 DEFAULT_DB = pathlib.Path("data/runs.sqlite")
 
 
-def _model(name: str):
+def _model(name: str, host: str, timeout_s: float):
+    """`stub` for offline path exercise; anything else is a local model tag.
+
+    There is no remote branch here by design: every run this project reports is produced
+    on local weights, and the digest of those weights is recorded with it.
+    """
     if name == "stub":
         from .model import StubModel
 
         return StubModel()
-    raise SystemExit(
-        f"unknown model {name!r}. Only 'stub' is wired up; the Anthropic client lands "
-        "with the first recorded run."
-    )
+    from .ollama import OllamaError, OllamaModel
+
+    try:
+        return OllamaModel(tag=name, host=host, timeout_s=timeout_s)
+    except OllamaError as exc:
+        raise SystemExit(str(exc)) from exc
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -30,8 +37,12 @@ def main(argv: list[str] | None = None) -> int:
 
     run = sub.add_parser("run", help="record a run against a split")
     run.add_argument("--split", default="dev", choices=["dev", "train", "test"])
-    run.add_argument("--model", default="stub")
+    run.add_argument("--model", default="ometsuke-eval",
+                     help="a local model tag, or 'stub' to exercise the path offline")
     run.add_argument("--limit", type=int)
+    run.add_argument("--host", default="http://localhost:11434")
+    run.add_argument("--timeout", type=float, default=600,
+                     help="seconds per call; the longest filings need ~80s of prefill alone")
 
     replay = sub.add_parser("replay", help="re-derive predictions from a recorded run")
     replay.add_argument("run_id")
@@ -53,9 +64,11 @@ def main(argv: list[str] | None = None) -> int:
         rows = dataset.load(args.split, limit=args.limit)
         source = "train" if args.split == "dev" else args.split
         prov = dataset.provenance(source)
-        run_id = runner.record(conn, rows, _model(args.model), prompts.build,
+        model = _model(args.model, args.host, args.timeout)
+        run_id = runner.record(conn, rows, model, prompts.build,
                                split=args.split,
                                dataset_ver=dataset.version_string(prov),
+                               config=getattr(model, "config", dict)(),
                                provenance=prov)
         print(run_id)
 
