@@ -10,6 +10,10 @@ An evaluation harness for Japanese accounting-fraud detection, built on
 [EDINET-Bench](https://huggingface.co/datasets/SakanaAI/EDINET-Bench) (Sakana AI, ICLR 2026),
 whose output is a number you can re-derive months later rather than one you have to trust.
 
+**Everything runs on open weights, locally.** No paid model APIs are used and none are
+needed to reproduce any result here. See [the charter](docs/00-project-charter.md) for
+what that constraint costs and what it buys.
+
 Work in progress. Below is what has been established so far.
 
 ---
@@ -23,7 +27,6 @@ positives**, along with `explanation`. The cause is a join-key mismatch in
 `edinet2dataset/scripts/fraud_detection/prepare_dataset.py`: the lookup table is keyed
 by the amendment's id, and looked up by the original filing's. The evidence for every
 positive label is therefore absent from the published artifact.
-→ [docs/03](docs/03-what-the-released-dataset-contains.md)
 
 **Filing date alone scores ROC-AUC 0.635.**
 Positives are systematically older than negatives — mean fiscal year end 2018.2 against
@@ -37,15 +40,22 @@ for Claude 3.5 Sonnet with narrative text.
 Filings from one company describe one scandal in near-identical language. Any confidence
 interval on this benchmark that resamples filings rather than companies is too narrow.
 
+**Misconduct vocabulary is a minority of the evidence.** Across 574 amendment texts
+recovered from EDINET, only **35%** contain 不適切な会計処理 / 粉飾 / 会計不正 / 不正
+anywhere — and 誤記 / 誤植, the obvious words for a clerical correction, appear in
+**none of them**.
+
+→ [docs/02](docs/02-what-the-dataset-contains.md), with reproduction steps
+
 ---
 
 ## What's here
 
 | | |
 |---|---|
-| [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how the fraud labels were built, verified against the shipped code |
-| [`docs/02`](docs/02-label-audit-protocol.md) | protocol for auditing those labels by hand |
-| [`docs/03`](docs/03-what-the-released-dataset-contains.md) | the findings above, with reproduction steps |
+| [`docs/00`](docs/00-project-charter.md) | the charter — what the project claims, what it refuses to claim, and the constraints that fix its scope |
+| [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how EDINET-Bench's fraud labels were built, verified against the shipped code |
+| [`docs/02`](docs/02-what-the-dataset-contains.md) | the findings above, with reproduction steps |
 | `scripts/` | reconstruction of the amendment → filing mapping the dataset omits: a ten-year sweep of EDINET's document API, verified against the XBRL element Sakana used (15/15 agreement), recovering **396 of 534** positives — the rest lost to EDINET's ten-year deletion policy |
 | `src/ometsuke/` | the harness: an append-only SQLite event log, content-addressed prompts and responses, `record` / `replay` / `rescore`, metrics with company-clustered bootstrap intervals |
 
@@ -53,7 +63,9 @@ interval on this benchmark that resamples filings rather than companies is too n
 
 Model calls are not deterministic even at fixed settings, so **replay means replaying
 recorded responses, not regenerating them**. That is what makes it useful: it separates
-*did my scoring logic change?* from *did the model change?*
+*did my scoring logic change?* from *did the model change?* Pinned open weights make the
+second question tractable too — the model is a file with a digest, not a service that
+shifts underneath you.
 
 Correctness is asserted behaviourally rather than by inspection. Among the tests: a
 perfect classifier must score AUC exactly 1.0; random scores must produce an interval
@@ -64,14 +76,19 @@ silently dropped, since silent drops score an easier subset than the one adverti
 
 ```bash
 uv run ometsuke run --split dev --model stub   # record
-uv run ometsuke replay <run_id>                # re-derive, no API calls
+uv run ometsuke replay <run_id>                # re-derive, no model calls
 uv run ometsuke score <run_id> --split dev     # AUC and MCC, clustered intervals
 uv run pytest
 ```
 
-## Framing
+## Scope
 
-EDINET-Bench is roughly 49% fraud. The real-world rate is a small fraction of one
+**The published 0.73 is not reproduced here, and cannot be.** That figure is Claude 3.5
+Sonnet; an open-weight model scoring differently measures the model, not the benchmark.
+What this offers instead is an open-weight evaluation of EDINET-Bench with
+company-clustered intervals, reproducible by anyone with no API budget.
+
+EDINET-Bench is roughly 49% fraud; the real-world rate is a small fraction of one
 percent. At a true rate near 1 in 200, a model catching 70% of frauds and clearing 70%
 of clean companies produces about 3,020 alerts of which roughly 35 are real — about 1%
 precision. A balanced benchmark is a legitimate measuring instrument, but **any score

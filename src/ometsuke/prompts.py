@@ -1,5 +1,7 @@
-"""Prompts. The Phase 1 target is reproducing the published baseline, so the text below
-is a faithful port of Sakana's `prompt/fraud_detection.yaml`.
+"""Prompts. The text below is a faithful port of Sakana's `prompt/fraud_detection.yaml`,
+held fixed so that the prompt is not a free variable when the model changes. The published
+score is not reproduced here — it was produced by a model this project does not call — but
+holding the prompt constant is what makes an open-weight run comparable at all.
 
 Two deliberate deviations, both recorded because they change what is being compared:
 

@@ -1,16 +1,16 @@
 # What the Released Dataset Actually Contains
 
-**Status:** findings, 2026-08-23
-**Depends on:** [01 — How EDINET-Bench's Fraud Labels Were Made](./01-how-edinet-bench-labels-were-made.md), [02 — Label Audit Protocol](./02-label-audit-protocol.md)
-**Why this document exists:** step 1 of the audit protocol is *"extract 提出理由 text for all 534 positives."* Checking that against the released files, rather than against the paper, turned up three things. One of them blocks the audit as written. One of them is a result in its own right.
+**Depends on:** [01 — How EDINET-Bench's Fraud Labels Were Made](./01-how-edinet-bench-labels-were-made.md)
+**Why this document exists:** every number this project reports is bounded by what the benchmark actually ships. Checking the released files directly, rather than trusting the paper, turned up four things that change how any score on it must be measured.
 
 ---
 
-## 1. The three findings
+## 1. The findings
 
-1. **The released dataset does not say which amendment produced any fraud label.** The field that should carry it is empty for 531 of the 534 positives, and the cause looks like a join bug in Sakana's dataset-assembly script. The audit's step 1 has to reconstruct the mapping from EDINET.
+1. **The released dataset does not say which amendment produced any fraud label.** The field that should carry it is empty for 531 of the 534 positives, and the cause looks like a join bug in Sakana's dataset-assembly script. The mapping has to be reconstructed from EDINET.
 2. **The positive class is systematically older than the negative class**, by construction. Ranking the test split on filing date alone — no financial data, no text — gives **ROC-AUC 0.635**, against published baselines of 0.68 (logistic regression) and 0.73 (Claude 3.5 Sonnet with narrative text).
 3. **The 534 positives come from 200 distinct companies**, and the 122 positives in the test split come from **50**. Every confidence interval on this benchmark has to be clustered by company, or it is too narrow.
+4. **Explicit misconduct vocabulary appears in only 35% of the amendment texts**, and the obvious words for a clerical correction — 誤記, 誤植 — appear in none of them.
 
 ---
 
@@ -50,7 +50,7 @@ One further detail: the published column is `ammended_doc_id` while the reposito
 
 ### Consequence
 
-Sakana's intermediate `analysis/result.jsonl` — which does hold `amended_doc_id`, `original_doc_id` and `explanation` per record — was never published. From the released dataset alone it is **not possible** to find the text that justified any given fraud label. The audit has to rebuild that mapping.
+Sakana's intermediate `analysis/result.jsonl` — which does hold `amended_doc_id`, `original_doc_id` and `explanation` per record — was never published. From the released dataset alone it is **not possible** to find the text that justified any given fraud label. That mapping has to be rebuilt from EDINET directly.
 
 *This is also a small contribution in its own right: a reproducible defect report against a published ICLR benchmark, with a one-line fix.*
 
@@ -79,6 +79,12 @@ The positive class is concentrated in the early years (77 filings with fiscal ye
 
 **So the archive is the deliverable, not a means to it.** The metadata sweep is being kept in `data/edinet-metadata/` and the amendment documents will be kept alongside it. Nothing about this gets easier by waiting.
 
+**Retention decision, 2026-09-19: the archive is deliberately not backed up.** It is
+gitignored (305 MB) and exists on local disk only. The consequence is accepted and
+recorded here rather than left implicit: the portion of the archive that has passed the
+ten-year wall **cannot be rebuilt at any price** if `data/` is lost. Re-running the sweep
+would recover only what EDINET still serves, which shrinks by one day per day.
+
 ### What it recovered (run 2026-08-23)
 
 The sweep took 3,654 days — 2016-08-22 to 2026-08-23 — and returned **891,724 records** with no gaps and no count mismatches against the API's own totals. Among them, **6,503 annual amendments**, against the 6,712 Sakana processed over a window shifted two years earlier. Earliest archived amendment: 2016-09-02.
@@ -104,7 +110,7 @@ The single unexplained case is `S100DNCW`, one of the three anomalous rows from 
 
 Multi-year restatements explain the shape: a fraud discovered in 2016 produces amendments for several prior years on the same day, so one pre-wall filing date takes out a whole run of fiscal years.
 
-**Consequence for the audit.** The population is 396, not 534, and it contains **no FY2015 filings at all**. The precision estimate must be reported as applying to positives from FY2016 onward, with the missing 26% stated. Whether label quality differs in the lost years is not knowable and should not be guessed at.
+**Consequence.** Any analysis resting on recovered amendments covers 396 positives, not 534, and contains **no FY2015 filings at all**. That restriction and the missing 26% must be stated wherever such a figure is reported. Whether label quality differs in the lost years is not knowable and should not be guessed at.
 
 ### Verification (known-answer check, passed)
 
@@ -184,19 +190,39 @@ This answers an open question from `docs/01` §8, and it has two consequences.
 
 **For Phase 1 metrics.** The bootstrap must resample **companies, not filings**. Filings from one company describe one scandal in near-identical language; treating them as independent draws makes every interval too narrow. This is the kind of error that produces a confident, wrong number and looks fine, so it needs a behavioural check rather than a code read. The check is that a company-clustered interval must come out *wider* than a naive one on the same data.
 
-**For the audit.** A simple random sample of 50 filings is not 50 independent judgements — it is closer to 35–40. The Wilson interval in `docs/02` §6 will therefore overstate its own precision, and the write-up needs to say so.
+The same applies to sampling: a simple random sample of 50 filings is not 50 independent observations — it is closer to 35–40.
 
 Also worth recording: 4 of the 534 positives are not plain 有価証券報告書. Their `提出書類` field reads 有価証券報告書（…訂正報告書の添付インラインXBRL） or has trailing whitespace — the same anomaly that produced the three accidental joins in §2.
 
 ---
 
-## 6. What this changes in the audit protocol
+## 6. What the amendment texts contain
 
-Three amendments to `docs/02`:
+574 提出理由 were extracted from the recovered amendments. Document frequency across all
+574, for the terms that carry the meaning:
 
-1. **Step 1 is now a reconstruction job**, not a column read: sweep, map, verify against the XBRL element, download, extract. It needs an EDINET API key and it is on a ten-year clock.
-2. **Blinding needs decoys.** `docs/02` §4 assumes the dataset ships `explanation` and that the danger is anchoring on it. It does not ship it. The real problem is the opposite: every item in the sample is a positive by construction, so the rater knows the answer key before reading a word. The fix is to mix in amendments that the labeller did *not* flag — available from the same sweep — so that bucket assignment is made without knowing which side of the label an item sits on.
-3. **The interval must be company-clustered**, and the audit population must be stated as *"positives whose amendment is still retrievable from EDINET"*, with the recovered share and its year skew reported alongside.
+| term | docs | | term | docs |
+|---|---|---|---|---|
+| 財務諸表 / 連結財務諸表 | 71% | | 不適切な会計処理 | 25% |
+| 監査法人 | 70% | | 誤り | 24% |
+| 計上 | 51% | | 特別調査委員会 | 23% |
+| 過年度 | 47% | | 社内調査 | 15% |
+| 監査報告書 | 44% | | 不正 | 15% |
+| 調査委員会 | 41% | | 第三者委員会 | 14% |
+| 売上 | 31% | | 架空 | 11% |
+| | | | 減損 / 引当金 | 10% |
+
+Two things in that table are worth stating outright, because both contradict what a
+reasonable prior would suggest.
+
+**誤記 and 誤植 — the obvious words for a clerical correction — appear in 0 of 574 texts.**
+The word doing that work in this corpus is **誤り** (137 texts, 24%). Any keyword scheme
+built on the obvious pair matches nothing at all.
+
+**Explicit misconduct vocabulary is a minority.** Only **202 of 574 (35%)** contain
+不適切な会計処理 / 粉飾 / 会計不正 / 不正 anywhere. Whatever signal separates a
+financial-statement correction from an unrelated one, in 65% of cases it is not a
+misconduct keyword.
 
 ---
 
@@ -222,4 +248,4 @@ The retention boundary in §3 was found by binary search over 2016 against the l
 - ~~What share of the 534 amendments survives the ten-year wall?~~ **Answered: 396 (74.2%), and the loss is entirely FY2015–2016** (§3).
 - Does the paper body report a date-only or metadata-only baseline?
 - How much of the 0.73 is era detection? Answered by the date-ablation in §4.
-- **57 negative-labelled filings were themselves later amended** (62 amendments; `data/negative-hits.csv`). Seven of those amendments were filed after April 2025 and so were invisible to Sakana; the other 55 are amendments their labeller saw and declined to flag, since any company it *had* flagged was excluded from the negative class by construction. Reading those 57 提出理由 measures what `docs/02` §8 calls permanently invisible. It is 57 items — small enough to read exhaustively, no sampling needed.
+- **57 negative-labelled filings were themselves later amended** (62 amendments; `data/negative-hits.csv`). Seven of those amendments were filed after April 2025 and so were invisible to Sakana; the other 55 are amendments their labeller saw and declined to flag, since any company it *had* flagged was excluded from the negative class by construction. They are the only measurable surface on negative-class error, and at 57 items the set is small enough to process exhaustively with no sampling.

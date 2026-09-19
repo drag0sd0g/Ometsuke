@@ -47,8 +47,8 @@ class ModelResponse:
 
 @runtime_checkable
 class Model(Protocol):
-    """Anything that turns a prompt into a response. The Anthropic client arrives in
-    weekend 2; until then StubModel exercises the whole path without spending money."""
+    """Anything that turns a prompt into a response. Implementations run locally against
+    pinned open weights; StubModel exercises the whole path without a model at all."""
 
     name: str
 

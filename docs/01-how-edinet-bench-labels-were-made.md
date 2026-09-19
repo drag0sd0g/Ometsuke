@@ -1,7 +1,6 @@
 # How EDINET-Bench's Fraud Labels Were Made
 
-**Status:** research notes, 2026-08-09
-**Why this document exists:** every score Ometsuke ever reports is bounded by the quality of these labels. Before optimising against a number, we need to know exactly what that number is measuring. This is the first thing we established, and everything downstream depends on it.
+**Why this document exists:** every score this project reports is bounded by the quality of EDINET-Bench's labels. Before optimising against a number, it is worth knowing exactly what that number measures.
 
 ---
 
@@ -161,32 +160,7 @@ Concretely, we want a **paired bootstrap**: because two systems are scored on th
 
 ---
 
-## 6. The label audit — the piece only we can do
-
-The single most valuable unglamorous thing available: **measure how accurate the positive labels actually are.**
-
-Procedure:
-
-1. Extract the 提出理由 section from a stratified random sample of the flagged amendments — 50 is enough to be useful.
-2. Read them in Japanese and classify each by hand:
-   - intentional accounting fraud
-   - unintentional misstatement
-   - correction unrelated to the financial statements
-   - genuinely ambiguous
-3. Report estimated label precision, with a confidence interval.
-
-Why this is worth doing:
-
-- It **bounds every score anyone reports** on this benchmark, including ours. If positive-label precision is 85%, that's essential context for interpreting 0.73.
-- It requires **N1 Japanese plus financial domain knowledge**, which is exactly the intersection that makes this project ours and not somebody else's.
-- It is a **standalone contribution**, valuable even if the agent work never beats the baseline.
-- It's honest work of a kind the benchmark-chasing world routinely skips.
-
-Sample size note: 50 hand-labelled items gives a precision estimate accurate to roughly ±10 percentage points. That's enough to distinguish "labels are basically fine" from "there's a real problem," which is the decision we need to make. Going to 100 buys meaningfully more precision if the first 50 look borderline.
-
----
-
-## 7. What we take forward
+## 6. What we take forward
 
 | Finding | Consequence for Ometsuke |
 |---|---|
@@ -199,7 +173,7 @@ Sample size note: 50 hand-labelled items gives a precision estimate accurate to 
 
 ---
 
-## 8. Open questions
+## 7. Open questions
 
 Things we don't know yet and should:
 
