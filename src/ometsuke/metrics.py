@@ -146,3 +146,37 @@ def paired_bootstrap(
             np.quantile(ordered, alpha / 2) > 0 or np.quantile(ordered, 1 - alpha / 2) < 0
         ),
     }
+
+
+def score_distribution(
+    labels: Sequence[int],
+    scores: Sequence[float],
+) -> dict[str, object]:
+    """How a prompt spends the 0-100 range, and whether it separates the classes.
+
+    The first open-weight run produced three distinct values across 61 filings, 72% of
+    them identical. ROC-AUC is a ranking metric, so that caps the achievable number
+    whatever the model actually knows — which makes the shape of this distribution a
+    prerequisite for reading any score, not a curiosity alongside it.
+
+    Deliberately descriptive. `distinct` and `top_share` need no statistical power, which
+    is what makes them usable at n=61 where an interval on AUC is ~0.3 wide and choosing
+    a prompt by its AUC is choosing noise.
+    """
+    from collections import Counter
+
+    counts = Counter(scores)
+    n = len(scores)
+    positives = [s for s, y in zip(scores, labels, strict=True) if y == 1]
+    negatives = [s for s, y in zip(scores, labels, strict=True) if y == 0]
+    return {
+        "n": n,
+        "distinct": len(counts),
+        "histogram": dict(sorted(counts.items())),
+        "top_value": counts.most_common(1)[0][0] if counts else None,
+        "top_share": counts.most_common(1)[0][1] / n if n else 0.0,
+        "mean_positive": sum(positives) / len(positives) if positives else None,
+        "mean_negative": sum(negatives) / len(negatives) if negatives else None,
+        "separation": (sum(positives) / len(positives) - sum(negatives) / len(negatives))
+                      if positives and negatives else None,
+    }

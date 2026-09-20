@@ -43,6 +43,8 @@ def main(argv: list[str] | None = None) -> int:
     run.add_argument("--host", default="http://localhost:11434")
     run.add_argument("--timeout", type=float, default=600,
                      help="seconds per call; the longest filings need ~80s of prefill alone")
+    run.add_argument("--prompt", default="baseline",
+                     help="prompt variant; 'baseline' is the control")
 
     replay = sub.add_parser("replay", help="re-derive predictions from a recorded run")
     replay.add_argument("run_id")
@@ -55,6 +57,11 @@ def main(argv: list[str] | None = None) -> int:
     score.add_argument("--allow-failures", action="store_true")
     score.add_argument("--draws", type=int, default=2000)
 
+    dist = sub.add_parser("distribution",
+                          help="how each run spends the score range (judge prompts on this)")
+    dist.add_argument("run_id", nargs="+")
+    dist.add_argument("--split", default="dev", choices=["dev", "train", "test"])
+
     sub.add_parser("runs", help="list runs")
 
     args = parser.parse_args(argv)
@@ -65,10 +72,15 @@ def main(argv: list[str] | None = None) -> int:
         source = "train" if args.split == "dev" else args.split
         prov = dataset.provenance(source)
         model = _model(args.model, args.host, args.timeout)
-        run_id = runner.record(conn, rows, model, prompts.build,
+        try:
+            build = prompts.builder(args.prompt)
+        except KeyError as exc:
+            raise SystemExit(str(exc)) from exc
+        run_id = runner.record(conn, rows, model, build,
                                split=args.split,
                                dataset_ver=dataset.version_string(prov),
-                               config=getattr(model, "config", dict)(),
+                               config={**getattr(model, "config", dict)(),
+                                       **prompts.config(args.prompt)},
                                provenance=prov)
         print(run_id)
 
@@ -81,6 +93,21 @@ def main(argv: list[str] | None = None) -> int:
                               groups=dataset.groups(rows),
                               allow_failures=args.allow_failures, draws=args.draws)
         print(json.dumps(result, indent=2))
+
+    elif args.command == "distribution":
+        from . import events, metrics
+        rows = {r["doc_id"]: r for r in dataset.load(args.split)}
+        for run_id in args.run_id:
+            started = events.read(conn, run_id, kind=events.RUN_STARTED)
+            cfg = started[0]["payload"]["config"] if started else {}
+            preds = events.read(conn, run_id, kind=events.PREDICTION_EMITTED)
+            failed = len(events.read(conn, run_id, kind=events.ITEM_FAILED))
+            pairs = [(int(bool(rows[e["item_id"]]["label"])), e["payload"]["score"])
+                     for e in preds if e["item_id"] in rows]
+            report = metrics.score_distribution([y for y, _ in pairs], [s for _, s in pairs])
+            print(json.dumps({"run_id": run_id,
+                              "prompt_variant": cfg.get("prompt_variant", "baseline"),
+                              "failed": failed, **report}, indent=2, ensure_ascii=False))
 
     elif args.command == "runs":
         for row in conn.execute(
