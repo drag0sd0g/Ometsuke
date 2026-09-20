@@ -66,26 +66,35 @@ analysis on non-numerical inconsistencies or logical red flags that could sugges
 # model's actual resolution. Note the instruction to spread is itself leading — it can
 # manufacture variance without adding information, which is exactly why this variant is
 # judged on distribution first and only later on whether the spread carries signal.
-ANCHORED = BASELINE.replace(
-    '  "score": int (0-100, confidence that the report is fraudulent),',
-    """  "score": int (0-100, confidence that the report is fraudulent). Use the whole
+_PLAIN_SCORE = '  "score": int (0-100, confidence that the report is fraudulent),'
+
+_ANCHORED_SCORE = """  "score": int (0-100, confidence that the report is fraudulent). Use the whole
            range and choose a precise value rather than a round one. Calibrate against:
            0-15 nothing of note; 16-35 minor presentational concerns only; 36-55 one
            unexplained item; 56-75 several related irregularities; 76-90 a specific and
-           coherent pattern; 91-100 near-certain misstatement with named evidence,""",
+           coherent pattern; 91-100 near-certain misstatement with named evidence,"""
+
+_CPA_FRAMING = (
+    "The report has been verified by a certified public accountant, and the numerical "
+    "values are consistent and correct from a calculation perspective. Therefore, please "
+    "focus your analysis on non-numerical inconsistencies or logical red flags that could "
+    "suggest fraud.\n"
 )
+
+ANCHORED = BASELINE.replace(_PLAIN_SCORE, _ANCHORED_SCORE)
 
 # Variable: the auditor framing. Everything else is byte-identical to baseline.
 # The removed sentence tells the model the figures are correct and to look only at
 # non-numerical signals — an odd instruction when the labels come from filings whose
 # numbers were precisely what got corrected.
-NO_CPA_FRAMING = BASELINE.replace(
-    """The report has been verified by a certified public accountant, and the numerical values \
-are consistent and correct from a calculation perspective. Therefore, please focus your \
-analysis on non-numerical inconsistencies or logical red flags that could suggest fraud.
-""",
-    "",
-)
+NO_CPA_FRAMING = BASELINE.replace(_CPA_FRAMING, "")
+
+# Both variables at once. On the dev split the two moved different things and neither
+# moved the other: anchoring took distinct scores from 3 to 6 while leaving separation
+# near baseline, and dropping the framing flipped the default from 72% "suspicious" to a
+# near-even split with the best separation of the four. Built by composition so it cannot
+# drift from either parent.
+COMBINED = NO_CPA_FRAMING.replace(_PLAIN_SCORE, _ANCHORED_SCORE)
 
 # Variable: the language of the instruction. The source document is Japanese either way.
 # Sakana's *labelling* prompt was Japanese while their *eval* prompt was English; this
@@ -112,6 +121,7 @@ TEMPLATES: dict[str, str] = {
     "baseline": BASELINE,
     "anchored": ANCHORED,
     "no-cpa": NO_CPA_FRAMING,
+    "combined": COMBINED,
     "japanese": JAPANESE,
 }
 
@@ -123,17 +133,40 @@ def template_for(name: str) -> str:
         raise KeyError(f"unknown prompt variant {name!r}; have {sorted(TEMPLATES)}") from None
 
 
-def config(name: str) -> dict[str, str]:
+# `meta` carries 当事業年度終了日, and filing date alone scores ROC-AUC 0.635 on the test
+# split. Putting it in a prompt hands the model the dataset's strongest shortcut and makes
+# any resulting number uninterpretable, so it is refused rather than merely discouraged.
+FORBIDDEN_SHEETS = frozenset({"meta"})
+
+
+def sheets_from(spec: str) -> tuple[str, ...]:
+    """Parse a comma-separated sheet list, refusing the ones that leak the label."""
+    chosen = tuple(part.strip() for part in spec.split(",") if part.strip())
+    if not chosen:
+        raise ValueError("no sheets selected")
+    leaking = sorted(FORBIDDEN_SHEETS.intersection(chosen))
+    if leaking:
+        raise ValueError(
+            f"refusing to build a prompt containing {leaking}: filing date alone scores "
+            "ROC-AUC 0.635 on this benchmark, so a run including it measures era "
+            "detection rather than fraud detection"
+        )
+    return chosen
+
+
+def config(name: str, sheets: tuple[str, ...] = DEFAULT_SHEETS) -> dict[str, object]:
     """What identifies a prompt in a run's config.
 
     The digest is the part that matters. A variant name is a label a careless edit can
     keep while changing the text underneath it; the hash cannot be kept by accident, so
-    two runs whose prompts differ can never share a `config_hash`.
+    two runs whose prompts differ can never share a `config_hash`. `sheets` is recorded
+    alongside because the same prompt over different inputs is a different experiment.
     """
     text = template_for(name)
     return {
         "prompt_variant": name,
         "prompt_sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+        "sheets": list(sheets),
     }
 
 

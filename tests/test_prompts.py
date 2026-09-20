@@ -100,3 +100,48 @@ def test_separation_is_positive_when_positives_score_higher():
 def test_separation_is_none_when_a_class_is_absent():
     """At small n a split can arrive single-class; reporting 0 would read as 'no signal'."""
     assert metrics.score_distribution([1, 1], [90, 80])["separation"] is None
+
+
+# --- the combined variant, and input selection ---------------------------------------
+
+def test_combined_is_exactly_the_union_of_its_two_parents():
+    """Built by composition, so it cannot drift from either variant it is compared to."""
+    assert prompts.COMBINED == prompts.ANCHORED.replace(prompts._CPA_FRAMING, "")
+    assert prompts.COMBINED == prompts.NO_CPA_FRAMING.replace(
+        prompts._PLAIN_SCORE, prompts._ANCHORED_SCORE)
+    assert "Calibrate against" in prompts.COMBINED
+    assert CPA_SENTENCE not in prompts.COMBINED
+
+
+def test_the_cpa_constant_is_the_text_actually_in_the_control():
+    """If this drifts, no-cpa silently stops removing anything and becomes baseline."""
+    assert prompts._CPA_FRAMING in prompts.BASELINE
+    assert prompts._PLAIN_SCORE in prompts.BASELINE
+
+
+def test_meta_is_refused_because_it_carries_the_filing_date():
+    with pytest.raises(ValueError, match="0.635"):
+        prompts.sheets_from("summary,meta,bs")
+
+
+def test_sheets_are_parsed_and_trimmed():
+    assert prompts.sheets_from(" summary , text ") == ("summary", "text")
+
+
+def test_an_empty_sheet_list_is_refused():
+    with pytest.raises(ValueError, match="no sheets"):
+        prompts.sheets_from(" , ")
+
+
+def test_config_records_the_input_as_well_as_the_prompt():
+    """The same prompt over different fields is a different experiment."""
+    structured = prompts.config("combined", ("summary", "bs", "pl", "cf"))
+    narrative = prompts.config("combined", ("text",))
+    assert structured["prompt_sha256"] == narrative["prompt_sha256"]
+    assert structured["sheets"] != narrative["sheets"]
+
+
+def test_builder_honours_the_selected_sheets():
+    item = {"summary": "S", "bs": "B", "pl": "P", "cf": "C", "text": "NARRATIVE"}
+    built = prompts.builder("combined", sheets=("text",))(item)
+    assert "NARRATIVE" in built and "S" not in built.split("text:")[-1].replace("NARRATIVE", "")

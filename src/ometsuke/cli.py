@@ -45,6 +45,9 @@ def main(argv: list[str] | None = None) -> int:
                      help="seconds per call; the longest filings need ~80s of prefill alone")
     run.add_argument("--prompt", default="baseline",
                      help="prompt variant; 'baseline' is the control")
+    run.add_argument("--sheets", default=",".join(prompts.DEFAULT_SHEETS),
+                     help="comma-separated fields to put in the prompt; 'text' is the "
+                          "narrative report. 'meta' is refused — it carries the filing date")
 
     replay = sub.add_parser("replay", help="re-derive predictions from a recorded run")
     replay.add_argument("run_id")
@@ -73,14 +76,15 @@ def main(argv: list[str] | None = None) -> int:
         prov = dataset.provenance(source)
         model = _model(args.model, args.host, args.timeout)
         try:
-            build = prompts.builder(args.prompt)
-        except KeyError as exc:
+            sheets = prompts.sheets_from(args.sheets)
+            build = prompts.builder(args.prompt, sheets=sheets)
+        except (KeyError, ValueError) as exc:
             raise SystemExit(str(exc)) from exc
         run_id = runner.record(conn, rows, model, build,
                                split=args.split,
                                dataset_ver=dataset.version_string(prov),
                                config={**getattr(model, "config", dict)(),
-                                       **prompts.config(args.prompt)},
+                                       **prompts.config(args.prompt, sheets)},
                                provenance=prov)
         print(run_id)
 
