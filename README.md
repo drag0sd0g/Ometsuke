@@ -64,7 +64,29 @@ here is a research claim, not a product claim.
 
 ## The harness
 
-Model calls are not deterministic even at fixed settings, so **replay means replaying
+```mermaid
+flowchart TD
+    HF[("EDINET-Bench<br/>pinned revision + SHA-256")] --> DS["dataset.py<br/>dev / train / test"]
+    MF["ometsuke-eval<br/>temperature 0 · seed 42 · 131k context"] -.-> OL
+
+    DS -->|one item| PR["prompts.py<br/>variant + sheets · meta refused"]
+    PR -->|"prompt, 6.5k to 62k tokens"| OL["ollama.py<br/>local open weights · no API"]
+    OL -->|response| PV{"parse_verdict<br/>strict — raises"}
+
+    PV -->|verdict| PE["prediction_emitted"]
+    PV -->|malformed| IF["item_failed<br/>reason + stop_reason"]
+
+    PE --> DB[("SQLite<br/>runs · events · blobs<br/>prompts and responses<br/>stored once by SHA-256")]
+    IF --> DB
+
+    DB -.->|"replay / rescore<br/>recorded responses<br/>zero model calls"| PV
+
+    DB --> MT["metrics.py<br/>AUC · MCC<br/>bootstrap resampled by company"]
+    MT --> SC["score<br/>refuses to report over<br/>unacknowledged failures"]
+```
+
+The dotted line back into `parse_verdict` is the point of the whole design. Model calls are
+not deterministic even at fixed settings, so **replay means replaying
 recorded responses, not regenerating them**. That separates *did my scoring logic change?*
 from *did the model change?* — and pinned open weights make the second question tractable,
 since the model is a file with a digest rather than a service that shifts underneath you.
