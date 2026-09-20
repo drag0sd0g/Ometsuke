@@ -79,14 +79,34 @@ def test_the_threshold_is_applied_in_the_right_direction():
     assert accruing.m_score > BENEISH_THRESHOLD and accruing.flags_manipulation is True
 
 
-def test_receivables_are_summed_across_the_accounts_filers_actually_use():
-    """Japanese filers split trade receivables; taking only the first would understate it."""
-    row = _row()
+def test_a_separate_receivable_instrument_is_added():
+    """電子記録債権 is a distinct instrument, so it adds to the trade receivable balance."""
+    row = _row()                                   # 受取手形及び売掛金 = 200
     bs = json.loads(row["bs"])
-    bs["売掛金"] = {"CurrentYear": "30.0", "Prior1Year": "30.0"}
     bs["電子記録債権"] = {"CurrentYear": "20.0", "Prior1Year": "20.0"}
     row["bs"] = json.dumps(bs, ensure_ascii=False)
-    assert extract(row)["receivables"]["t"] == pytest.approx(250.0)
+    assert extract(row)["receivables"]["t"] == pytest.approx(220.0)
+
+
+def test_an_overlapping_receivable_label_is_not_double_counted():
+    """受取手形及び売掛金 means "notes AND accounts receivable" and already contains
+    売掛金. Adding them inflates the balance — 55 training filings report both, and for
+    16 of those the labels differ between years, so the error does not cancel inside
+    DSRI. The combined line wins; the narrower one is ignored."""
+    row = _row()                                   # 受取手形及び売掛金 = 200
+    bs = json.loads(row["bs"])
+    bs["売掛金"] = {"CurrentYear": "30.0", "Prior1Year": "30.0"}
+    row["bs"] = json.dumps(bs, ensure_ascii=False)
+    assert extract(row)["receivables"]["t"] == pytest.approx(200.0), "must not be 230"
+
+
+def test_the_narrower_label_is_used_when_the_combined_one_is_absent():
+    row = _row()
+    bs = json.loads(row["bs"])
+    del bs["受取手形及び売掛金"]
+    bs["売掛金"] = {"CurrentYear": "30.0", "Prior1Year": "30.0"}
+    row["bs"] = json.dumps(bs, ensure_ascii=False)
+    assert extract(row)["receivables"]["t"] == pytest.approx(30.0)
 
 
 # --- how it declines to answer ------------------------------------------------------

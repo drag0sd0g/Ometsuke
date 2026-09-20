@@ -88,7 +88,7 @@ It measures **ranking quality, not correctness**. It doesn't care where you set 
 threshold, only whether the ordering is sensible — closer to "does my priority queue put
 the real incidents near the front?" than "did it label this one right?"
 
-*Here:* Beneish's M-score scores **0.436** — below chance ([03](./03-forensic-accounting-features.md)).
+*Here:* Beneish's M-score scores **0.438** — below chance ([03](./03-forensic-accounting-features.md)).
 Filing date alone scores **0.635**.
 
 **A trap worth knowing:** AUC depends only on the *order* of scores, so if your system
@@ -287,7 +287,7 @@ sales, margin changes, asset quality, leverage, accruals), combined with fixed w
 a 1999 paper into one number. Above −1.78 flags possible manipulation. It is the standard
 textbook screen.
 
-*Here:* it lands at **0.436 — below chance**, with accruals the most inverted of the eight.
+*Here:* it lands at **0.438 — below chance**, with accruals the most inverted of the eight.
 
 **循環取引 (junkan torihiki)** — circular trading. Fictitious sales settled by cash moving
 in a loop between colluding parties. A characteristically Japanese fraud pattern, and the

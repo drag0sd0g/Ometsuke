@@ -31,26 +31,31 @@ from typing import Any
 CURRENT = "CurrentYear"
 PRIOR = "Prior1Year"
 
-# Concept -> (sheet, candidate labels). Order matters: the first label present wins,
-# except for concepts in SUMMED where every present label is added.
-CONCEPTS: dict[str, tuple[str, list[str]]] = {
-    "sales":        ("pl", ["売上高", "営業収益"]),
-    "cogs":         ("pl", ["売上原価"]),
-    "sga":          ("pl", ["販売費及び一般管理費"]),
-    "net_income":   ("pl", ["当期利益", "親会社株主に帰属する当期純利益"]),
-    "receivables":  ("bs", ["受取手形及び売掛金", "売掛金", "電子記録債権"]),
-    "curr_assets":  ("bs", ["流動資産"]),
-    "ppe":          ("bs", ["有形固定資産"]),
-    "total_assets": ("bs", ["総資産"]),
-    "curr_liab":    ("bs", ["流動負債"]),
-    "noncurr_liab": ("bs", ["非流動負債", "固定負債"]),
-    "depreciation": ("cf", ["減価償却費及び償却費"]),
-    "cfo":          ("cf", ["営業キャッシュフロー"]),
+# Concept -> (sheet, groups). Each group is a list of mutually exclusive alternatives:
+# the first label present in a group contributes its value, and the groups are then
+# summed. One structure covers both "these are different names for the same thing" and
+# "these are different things that add up".
+#
+# Receivables are why this shape is needed. 受取手形及び売掛金 means "notes AND accounts
+# receivable" and already contains 売掛金, so adding them double-counts — which 55 filings
+# in the training split would trigger. For 39 of those the same labels appear in both
+# years and the error cancels inside DSRI, a ratio of ratios; for 16 the labels differ
+# between years and it does not. 電子記録債権 is a genuinely separate instrument and is
+# added on top.
+CONCEPTS: dict[str, tuple[str, list[list[str]]]] = {
+    "sales":        ("pl", [["売上高", "営業収益"]]),
+    "cogs":         ("pl", [["売上原価"]]),
+    "sga":          ("pl", [["販売費及び一般管理費"]]),
+    "net_income":   ("pl", [["当期利益", "親会社株主に帰属する当期純利益"]]),
+    "receivables":  ("bs", [["受取手形及び売掛金", "売掛金"], ["電子記録債権"]]),
+    "curr_assets":  ("bs", [["流動資産"]]),
+    "ppe":          ("bs", [["有形固定資産"]]),
+    "total_assets": ("bs", [["総資産"]]),
+    "curr_liab":    ("bs", [["流動負債"]]),
+    "noncurr_liab": ("bs", [["非流動負債", "固定負債"]]),
+    "depreciation": ("cf", [["減価償却費及び償却費"]]),
+    "cfo":          ("cf", [["営業キャッシュフロー"]]),
 }
-
-# Japanese filers split trade receivables across several accounts and use different
-# combinations, so the total is the sum of whichever are present rather than the first.
-SUMMED = frozenset({"receivables"})
 
 BENEISH_COEFFICIENTS = {
     "intercept": -4.84, "DSRI": 0.920, "GMI": 0.528, "AQI": 0.404, "SGI": 0.892,
@@ -82,22 +87,25 @@ def _sheets(row: dict[str, Any]) -> dict[str, dict]:
 
 
 def value(sheets: dict[str, dict], concept: str, year: str) -> float | None:
-    """One account for one year, or None. Never raises on malformed input."""
-    field, labels = CONCEPTS[concept]
-    found: list[float] = []
-    for label in labels:
-        raw = (sheets[field].get(label) or {}).get(year)
-        if raw in (None, "", "-"):
-            continue
-        try:
-            found.append(float(raw))
-        except (TypeError, ValueError):
-            continue
-        if concept not in SUMMED:
-            break
-    if not found:
-        return None
-    return sum(found) if concept in SUMMED else found[0]
+    """One concept for one year, or None. Never raises on malformed input.
+
+    Within a group the first present label wins — later entries are alternative names for
+    the same balance, not additional balances. Across groups the values are summed.
+    """
+    field, groups = CONCEPTS[concept]
+    total, found_any = 0.0, False
+    for group in groups:
+        for label in group:
+            raw = (sheets[field].get(label) or {}).get(year)
+            if raw in (None, "", "-"):
+                continue
+            try:
+                total += float(raw)
+            except (TypeError, ValueError):
+                continue
+            found_any = True
+            break  # alternatives within a group are mutually exclusive
+    return total if found_any else None
 
 
 def extract(row: dict[str, Any]) -> dict[str, dict[str, float | None]]:

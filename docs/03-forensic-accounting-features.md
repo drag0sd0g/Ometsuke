@@ -8,7 +8,7 @@ as we can establish it has not been run on EDINET-Bench. It should be, because a
 model scoring 0.73 on a task an eight-ratio formula also solves is a much less interesting
 result than it first appears.
 
-**It does not solve it. The M-score scores ROC-AUC 0.436 — below chance, with the
+**It does not solve it. The M-score scores ROC-AUC 0.438 — below chance, with the
 interval excluding 0.5.** What follows is that result and the checks it survived.
 
 ---
@@ -26,11 +26,26 @@ consistently enough for that to be mostly achievable, but not always.
 Blocked by, in order: `net_income` (90 rows), `sales` (89), `receivables` (62),
 `cogs` (17), `depreciation` (8), `noncurr_liab` (6), `sga` (1), `ppe` (1).
 
-Two decisions shape that number. Trade receivables are **summed** across 受取手形及び売掛金,
-売掛金 and 電子記録債権, because Japanese filers split them differently and taking only the
-first understates the balance. And 有価証券 was excluded from the asset-quality index: it is
-present in only 12.7% of rows, and including it drops coverage from 68.3% to **8.0%** while
-adding nothing the 1999 formulation requires.
+Two decisions shape that number. **Trade receivables resolve 受取手形及び売掛金 and 売掛金
+as mutually exclusive** — the former means "notes *and* accounts receivable" and already
+contains the latter — while 電子記録債権, a separate instrument, is added on top. And
+有価証券 was excluded from the asset-quality index: it is present in only 12.7% of rows, and
+including it drops coverage from 68.3% to **8.0%** while adding nothing the 1999
+formulation requires.
+
+### A correction, 2026-09-20
+
+An earlier version of this document reported **0.436** with DSRI among the inverted
+indices. Receivables were being summed across 受取手形及び売掛金, 売掛金 and 電子記録債権 —
+but the first of those means "notes **and** accounts receivable" and already contains the
+second. 55 training filings report both. For 39 the same labels appear in both years and
+the error cancels inside DSRI, which is a ratio of ratios; for **16 the labels differ
+between years**, so it does not.
+
+Fixed by treating 受取手形及び売掛金 and 売掛金 as mutually exclusive alternatives while
+still adding 電子記録債権, a genuinely separate instrument. The composite moved 0.436 →
+0.438, immaterially. **DSRI's interval now touches 0.5** and no longer clears the bar,
+which narrows the finding from two inverted indices to one.
 
 ### The computable subset is not a random sample
 
@@ -59,10 +74,10 @@ companies behind 591 filings), seed 42.
 
 | | ROC-AUC | 95% CI |
 |---|---:|---|
-| **Beneish M-score** | **0.436** | [0.388, 0.488] |
+| **Beneish M-score** | **0.438** | [0.389, 0.491] |
 | Filing year alone (control) | 0.594 | [0.538, 0.650] |
 
-**Paired bootstrap, same 591 items: M-score − era = −0.159, 95% CI [−0.238, −0.083].**
+**Paired bootstrap, same 591 items: M-score − era = −0.156, 95% CI [−0.234, −0.081].**
 The interval excludes zero. The M-score is not merely uninformative here; it is
 significantly worse than knowing nothing but the filing's date.
 
@@ -95,7 +110,7 @@ with the fraud label, as Beneish intends.
 
 | index | ROC-AUC | 95% CI | |
 |---|---:|---|---|
-| DSRI — days sales in receivables | 0.454 | [0.414, 0.498] | inverted |
+| DSRI — days sales in receivables | 0.458 | [0.417, 0.500] | |
 | GMI — gross margin | 0.507 | [0.467, 0.549] | |
 | AQI — asset quality | 0.463 | [0.423, 0.505] | |
 | SGI — sales growth | 0.454 | [0.407, 0.504] | |
@@ -104,15 +119,14 @@ with the fraud label, as Beneish intends.
 | **TATA — total accruals to assets** | **0.428** | [0.377, 0.481] | **inverted** |
 | LVGI — leverage | 0.532 | [0.487, 0.575] | |
 
-Six of the eight straddle 0.5. Two do not, both inverted — and **TATA carries by far the
-largest coefficient in the composite (4.679)**, which is why the M-score lands where it
-does rather than merely near chance.
+Seven of the eight straddle 0.5. **Only TATA does not**, and it carries by far the largest
+coefficient in the composite (4.679), which is why the M-score lands where it does rather
+than merely near chance.
 
-**Caveat that must travel with this table:** eight indices were tested and two cleared a
-95% interval. That is more than chance would usually produce from eight tests, but not by
-much, and no correction for multiple comparisons has been applied. The TATA result is the
-one worth taking seriously, on the strength of its effect size and its weight in the
-composite rather than its interval alone.
+**Caveat that must travel with this table:** eight indices were tested and one cleared a
+95% interval — which is roughly what chance alone produces from eight tests, and no
+correction for multiple comparisons has been applied. TATA is worth taking seriously on
+the strength of its effect size and its weight in the composite, not on its interval.
 
 ---
 

@@ -30,7 +30,7 @@ regression, 0.73 Claude 3.5 Sonnet with narrative text.
 Filings from one company describe one scandal in near-identical language. Any interval
 that resamples filings rather than companies is too narrow.
 
-**Beneish's M-score lands below chance — ROC-AUC 0.436**, interval excluding 0.5, and
+**Beneish's M-score lands below chance — ROC-AUC 0.438**, interval excluding 0.5, and
 significantly worse than ranking the same filings by date. Not an era artifact, not
 outliers. The accruals index carries the largest coefficient and is the most inverted of
 the eight. → [docs/03](docs/03-forensic-accounting-features.md)
