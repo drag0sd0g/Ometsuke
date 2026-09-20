@@ -221,6 +221,61 @@ def predictions(
     ]
 
 
+def joined(
+    conn: sqlite3.Connection,
+    run_id: str,
+    truth: dict[str, int],
+    groups: dict[str, str] | None = None,
+    allow_failures: bool = False,
+) -> dict[str, list]:
+    """A run's predictions lined up against ground truth, or an error naming the gap.
+
+    Every caller that compares predictions to labels goes through here, so there is one
+    join rather than one per command. The `missing` check is the point: dropping
+    unmatched items would shrink the denominator silently, which is the same class of
+    bias as a tolerant parser — a number computed over fewer items than it claims.
+    """
+    rows = predictions(conn, run_id, allow_failures=allow_failures)
+    missing = [row["doc_id"] for row in rows if row["doc_id"] not in truth]
+    if missing:
+        raise KeyError(f"no ground truth for {len(missing)} item(s), e.g. {missing[:3]}")
+
+    return {
+        "doc_ids": [row["doc_id"] for row in rows],
+        "labels": [truth[row["doc_id"]] for row in rows],
+        "scores": [row["score"] for row in rows],
+        "calls": [int(bool(row["label"])) for row in rows],
+        "clusters": [groups[row["doc_id"]] for row in rows] if groups else None,
+    }
+
+
+def distribution(
+    conn: sqlite3.Connection,
+    run_id: str,
+    truth: dict[str, int],
+    allow_failures: bool = True,
+) -> dict[str, Any]:
+    """How a run spent the score range, and whether it separated the classes.
+
+    Judged before AUC when comparing prompts: distinct-value count and spread are
+    descriptive and need no statistical power, whereas at small n an AUC comparison is
+    mostly noise. Failures are tolerated by default because this is a diagnostic — but
+    the count is reported so a run riddled with them cannot look clean.
+    """
+    from . import metrics
+
+    data = joined(conn, run_id, truth, allow_failures=allow_failures)
+    started = events.read(conn, run_id, kind=events.RUN_STARTED)
+    config = started[0]["payload"]["config"] if started else {}
+    return {
+        "run_id": run_id,
+        "prompt_variant": config.get("prompt_variant", "baseline"),
+        "sheets": config.get("sheets"),
+        "failed": len(events.read(conn, run_id, kind=events.ITEM_FAILED)),
+        **metrics.score_distribution(data["labels"], data["scores"]),
+    }
+
+
 def score(
     conn: sqlite3.Connection,
     run_id: str,
@@ -232,15 +287,10 @@ def score(
     """AUC and MCC for a run, each with a bootstrap interval clustered by `groups`."""
     from . import metrics
 
-    rows = predictions(conn, run_id, allow_failures=allow_failures)
-    missing = [row["doc_id"] for row in rows if row["doc_id"] not in truth]
-    if missing:
-        raise KeyError(f"no ground truth for {len(missing)} item(s), e.g. {missing[:3]}")
-
-    labels: Sequence[int] = [truth[row["doc_id"]] for row in rows]
-    scores = [row["score"] for row in rows]
-    calls = [int(bool(row["label"])) for row in rows]
-    cluster = [groups[row["doc_id"]] for row in rows] if groups else None
+    data = joined(conn, run_id, truth, groups=groups, allow_failures=allow_failures)
+    rows = data["doc_ids"]
+    labels: Sequence[int] = data["labels"]
+    scores, calls, cluster = data["scores"], data["calls"], data["clusters"]
 
     return {
         "run_id": run_id,

@@ -141,3 +141,69 @@ def test_replay_carries_the_source_provenance_forward(conn):
     replay_id = runner.replay(conn, run_id)
     started = events.read(conn, replay_id, kind=events.RUN_STARTED)[0]["payload"]
     assert started["provenance"] == prov
+
+
+# --- the join every comparison goes through ------------------------------------------
+
+def _recorded(tmp_path, items=ITEMS):
+    conn = db.connect(tmp_path / "runs.sqlite")
+    run_id = runner.record(conn, items, StubModel(), build_prompt, split="dev",
+                           config={"prompt_variant": "no-cpa", "sheets": ["text"]})
+    return conn, run_id
+
+
+def test_a_missing_label_is_an_error_not_a_silent_drop(tmp_path):
+    """Dropping unmatched items shrinks the denominator without saying so — the same
+    class of bias as a tolerant parser, and the one this harness exists to rule out."""
+    conn, run_id = _recorded(tmp_path)
+    partial = {"S100AAAA": 1, "S100BBBB": 0}          # two of the four items
+    with pytest.raises(KeyError, match="no ground truth for 2 item"):
+        runner.joined(conn, run_id, partial)
+
+
+def test_the_join_keeps_every_column_aligned(tmp_path):
+    conn, run_id = _recorded(tmp_path)
+    truth = {"S100AAAA": 1, "S100BBBB": 0, "S100CCCC": 1, "S100DDDD": 0}
+    groups = {i["doc_id"]: i["edinet_code"] for i in ITEMS}
+    data = runner.joined(conn, run_id, truth, groups=groups)
+    assert len(data["doc_ids"]) == len(data["labels"]) == len(data["scores"]) == 4
+    assert data["labels"] == [truth[d] for d in data["doc_ids"]]
+    assert data["clusters"] == [groups[d] for d in data["doc_ids"]]
+
+
+def test_score_and_distribution_read_the_same_items(tmp_path):
+    """Two commands, one join. If they diverge, two published numbers describe
+    different subsets while appearing to describe the same run."""
+    conn, run_id = _recorded(tmp_path)
+    truth = {"S100AAAA": 1, "S100BBBB": 0, "S100CCCC": 1, "S100DDDD": 0}
+    assert runner.score(conn, run_id, truth)["n"] == runner.distribution(conn, run_id, truth)["n"]
+
+
+def test_distribution_reports_what_produced_the_run(tmp_path):
+    """A histogram without its prompt and inputs is not attributable to anything."""
+    conn, run_id = _recorded(tmp_path)
+    truth = {i["doc_id"]: 0 for i in ITEMS}
+    report = runner.distribution(conn, run_id, truth)
+    assert report["prompt_variant"] == "no-cpa"
+    assert report["sheets"] == ["text"]
+    assert report["failed"] == 0
+    assert report["distinct"] >= 1
+
+
+def test_distribution_surfaces_failures_rather_than_hiding_them(tmp_path):
+    """It tolerates failures — it is a diagnostic — but must never look clean with them."""
+    conn = db.connect(tmp_path / "runs.sqlite")
+
+    class SometimesBroken(StubModel):
+        def __init__(self):
+            super().__init__("sometimes")
+            self.n = 0
+
+        def complete(self, prompt):
+            self.n += 1
+            return ModelResponse(text="not json") if self.n == 1 else super().complete(prompt)
+
+    run_id = runner.record(conn, ITEMS, SometimesBroken(), build_prompt, split="dev")
+    report = runner.distribution(conn, run_id, {i["doc_id"]: 0 for i in ITEMS})
+    assert report["failed"] == 1
+    assert report["n"] == 3

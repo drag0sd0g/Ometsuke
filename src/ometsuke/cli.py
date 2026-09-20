@@ -99,19 +99,10 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(result, indent=2))
 
     elif args.command == "distribution":
-        from . import events, metrics
-        rows = {r["doc_id"]: r for r in dataset.load(args.split)}
+        truth = dataset.truth(dataset.load(args.split))
         for run_id in args.run_id:
-            started = events.read(conn, run_id, kind=events.RUN_STARTED)
-            cfg = started[0]["payload"]["config"] if started else {}
-            preds = events.read(conn, run_id, kind=events.PREDICTION_EMITTED)
-            failed = len(events.read(conn, run_id, kind=events.ITEM_FAILED))
-            pairs = [(int(bool(rows[e["item_id"]]["label"])), e["payload"]["score"])
-                     for e in preds if e["item_id"] in rows]
-            report = metrics.score_distribution([y for y, _ in pairs], [s for _, s in pairs])
-            print(json.dumps({"run_id": run_id,
-                              "prompt_variant": cfg.get("prompt_variant", "baseline"),
-                              "failed": failed, **report}, indent=2, ensure_ascii=False))
+            report = runner.distribution(conn, run_id, truth)
+            print(json.dumps(report, indent=2, ensure_ascii=False))
 
     elif args.command == "runs":
         for row in conn.execute(
