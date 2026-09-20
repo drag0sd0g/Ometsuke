@@ -82,9 +82,9 @@ on the same data.
 | | | Needs |
 |---|---|---|
 | A | **Classical forensic-accounting features.** Beneish's M-score is **done** — ROC-AUC 0.438, below chance ([03](./03-forensic-accounting-features.md)). Dechow F-Score, Benford's Law and Jones-model accruals remain. | No model calls |
-| B | **Open-weight baseline** on dev and test splits, company-clustered intervals | Local inference |
+| B | **Open-weight baseline.** Train split **done** — 0.550 [0.515, 0.582], indistinguishable from a date-only control ([05](./05-open-weight-baseline.md)). Test split still untouched. | Local inference |
 | C | **Era ablation** — how much of a text-based score is recoverable from era cues alone | Local inference |
-| D | **Prompt variants** — score elicitation, the auditor framing, instruction language | Local inference |
+| D | **Prompt variants.** The auditor framing is **done** — a tight null on AUC, a large shift in calibration ([05](./05-open-weight-baseline.md) §3). Score elicitation is the open one: output is near-degenerate and that caps the score. | Local inference |
 | E | **The agent** — multi-step investigation, temporal diffing, cross-source corroboration | Local inference |
 | F | **Event-sourced replay and per-run accounting** | Harness only |
 

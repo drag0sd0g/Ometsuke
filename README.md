@@ -35,6 +35,18 @@ significantly worse than ranking the same filings by date. Not an era artifact, 
 outliers. The accruals index carries the largest coefficient and is the most inverted of
 the eight. → [docs/03](docs/03-forensic-accounting-features.md)
 
+**An open-weight model beats chance but not the calendar.** On 862 training filings,
+`qwen3.5-122b` scores **ROC-AUC 0.550** (95% company-clustered CI [0.515, 0.582]) — the
+interval excludes 0.5, so the signal is real. Ranking those same filings by date alone
+scores 0.594, and the paired difference is **−0.044 [−0.105, +0.016]**: indistinguishable.
+→ [docs/05](docs/05-open-weight-baseline.md)
+
+**One sentence in the published prompt is a calibration switch.** Deleting *"the report
+has been verified by a certified public accountant…"* changes AUC by **−0.004 [−0.037,
++0.028]** — a tight null — while moving **338 of 862 filings** from "suspicious" to
+"clean" and dropping MCC from 0.141 to 0.102. Every threshold-based metric on this
+benchmark is partly a report about that sentence; rank-based metrics are untouched.
+
 **Whether a filing can be scored at all depends on its label.** Statements parse
 completely for 68.3% of rows, and those rows carry a 13-point higher fraud rate and a
 1.6-year later mean fiscal year than the ones that drop out.
@@ -58,6 +70,7 @@ here is a research claim, not a product claim.
 | [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how the fraud labels were built, verified against the shipped code |
 | [`docs/02`](docs/02-what-the-dataset-contains.md) | what the dataset contains, with reproduction steps |
 | [`docs/03`](docs/03-forensic-accounting-features.md) | Beneish's M-score on this benchmark, and why it fails |
+| [`docs/05`](docs/05-open-weight-baseline.md) | the open-weight result, and what one sentence in the published prompt does to it |
 | [`docs/04`](docs/04-background.md) | **new to the statistics or the accounting? start here** — every term, explained by analogy to distributed systems |
 | `scripts/` | reconstruction of the amendment → filing mapping the dataset omits — a ten-year EDINET sweep, verified 15/15 against the XBRL element Sakana used, recovering 396 of 534 positives |
 | `src/ometsuke/` | the harness |
