@@ -1,17 +1,15 @@
 # Ometsuke — Project Charter
 
-What this project is, what it claims, and the constraints that fix its scope.
+What this project is, and the constraints that fix its scope.
 
 ---
 
 ## The problem
 
 [EDINET-Bench](https://huggingface.co/datasets/SakanaAI/EDINET-Bench) (Sakana AI, ICLR 2026)
-measures Japanese accounting-fraud detection from annual reports (有価証券報告書).
-
-| Task | Best published LLM | Baseline |
-|---|---|---|
-| Accounting fraud detection (ROC-AUC / MCC) | 0.73 / 0.32 — Claude 3.5 Sonnet with narrative text | Logistic regression 0.68 / 0.17 |
+measures Japanese accounting-fraud detection from annual reports (有価証券報告書). The best
+published result is ROC-AUC 0.73 / MCC 0.32 (Claude 3.5 Sonnet with narrative text),
+against 0.68 / 0.17 for logistic regression.
 
 Models are asked to judge **one filing in isolation**. Fraud rarely sits inside a single
 report; it shows up as drift *between* filings, and against what the company was
@@ -35,102 +33,47 @@ layer is the claim, not a garnish on one:
 
 Fixed. Proposals that violate them get rejected without further analysis.
 
-- **Local inference only.** No paid model APIs, no spend.
+- **Local inference only.** No paid model APIs, no spend. An open-weight model scoring
+  differently from a published figure measures the model, not the benchmark — so what
+  this offers is an open-weight evaluation with company-clustered intervals,
+  reproducible by anyone with no API budget.
 - **No manual classification.** Nothing in the plan may depend on a human reading and
   labelling documents by hand.
 - Roughly 2–3 hours per week, single contributor.
 
-## What is and is not claimed
-
-**Not claimed: the published 0.73.** That figure is Claude 3.5 Sonnet. An open-weight
-model scoring differently measures the model, not the benchmark. This project does not
-reproduce or contest it.
-
-**Claimed instead:** the first open-weight evaluation of EDINET-Bench with
-company-clustered intervals, reproducible by anyone with no API budget. Mechanism
-questions — how much of a score is era detection, whether prompting in Japanese changes
-the result — remain fully answerable locally, because they ask whether a factor *moves*
-the number rather than how capable a given model is.
-
-**Standing caveat.** EDINET-Bench is roughly 49% fraud; the real-world rate is a small
-fraction of one percent. At a true rate near 1 in 200, a model catching 70% of frauds and
-clearing 70% of clean companies yields about 3,020 alerts of which roughly 35 are real.
-Any score here is a research claim, not a product claim.
-
 ---
 
-## Measured feasibility
+## Measured capacity
 
 *M5 Max, 128 GB, `qwen3.5-122b-ctx` at 131,072 context.*
 
-| Input | chars | tokens (0.79 tok/char) |
-|---|---:|---:|
-| `text` p50 | 34,543 | ~27,100 |
-| `text` max | 78,129 | ~62,000 |
-| `summary`+`bs`+`pl`+`cf` | ~9,200 | ~7,300 |
-
-Every filing fits in context with ~2× headroom. **Truncation is not required and must not
-be introduced silently.**
-
-| Throughput | |
+| | |
 |---|---|
 | Prefill | 782 tok/s |
 | Generation | 49 tok/s |
-| Output per item | ~690 tokens median, 1,626 max observed |
+| Dev subset, structured fields (61 items) | 25 min |
+| Test split, full text (224 items) | ~3 h |
+| Full dataset, full text (1,089 items) | ~15 h — one overnight run |
 
-| Run | Items | Estimate |
-|---|---:|---|
-| Dev subset, structured fields | 61 | **25 min** (measured) |
-| Full dataset, structured fields | 1,089 | ~7 h |
-| Test split, full text | 224 | ~3 h |
-| Full dataset, full text | 1,089 | ~15 h — one overnight run |
-
-Runs are sequential; the client issues one request at a time. Concurrency is the
-untested lever, since generation is bandwidth-bound and parallel requests would amortise
-the same weight reads.
-
-**Two hazards, both met in practice:**
-
-`qwen3.5-122b` is a reasoning model. On a 64-token output budget it consumed the entire
-budget thinking and returned an empty response. Thinking is suppressed via `think: false`
-on every call.
-
-**An output budget that clips long answers drops positives preferentially.** At
-`num_predict 1024`, 12 of 61 dev items hit the cap — and those 12 carried a 41.7% fraud
-rate against 22.4% among the items that completed, because the model writes more about
-filings it finds suspicious. A harness that dropped them silently would have scored a
-subset depleted of the positive class. Budget is now 3,072 against a 1,626-token
-observed maximum.
+Filings run ~27k tokens at the median and ~62k at the maximum, so every one fits in
+context with roughly 2× headroom. **Truncation is not required and must not be introduced
+silently.** Runs are sequential; concurrency is the untested lever, since generation is
+bandwidth-bound and parallel requests would amortise the same weight reads.
 
 ---
 
-## The harness
+## Measurement rules
 
-**Three run modes.** `record` calls the model and writes events; `replay` re-derives
-predictions and metrics from a prior run's recorded responses with no model calls;
-`rescore` replays with new parsing or metric code against the same fixed responses.
+The harness itself is described in the README. Two rules govern every number it produces.
 
-**Replay means replaying recorded responses, not regenerating them.** Model calls are not
-deterministic even at fixed settings. That distinction is the point: it separates *did my
-scoring logic change?* from *did the model change?* Pinned open weights make the second
-question tractable too — the model is a file with a digest, not a service that shifts
-underneath you.
+**Error bars are the deliverable.** ROC-AUC and MCC are trivial to compute. The test split
+is 224 items and published MCC is 0.32 — at that n, an apparent improvement to 0.38 is
+indistinguishable from noise. Use a paired bootstrap when comparing two systems on the
+same items.
 
-**The event log** is append-only SQLite. One step per item today; the schema carries N
-steps so the agent phase needs no migration. Prompts and responses live in a
-content-addressed blob table keyed by SHA-256, which keeps the database small and makes
-"did the prompt change?" a hash comparison rather than a diff.
-
-**The prediction contract** is structured output, parsed strictly. Parsing raises; the
-runner records `item_failed`; scoring refuses to compute metrics over a run with
-unacknowledged failures. Silent drops are a quiet bias — if parsing fails more often on
-harder filings, the reported score covers an easier subset than the one advertised.
-
-**Metrics.** ROC-AUC and MCC are trivial; the error bars are the deliverable. The test
-split is 224 items and published MCC is 0.32 — at that n, an apparent improvement to 0.38
-is indistinguishable from noise. Use a paired bootstrap when comparing two systems on the
-same items, and **always resample companies, not filings** (see
-[02](./02-what-the-dataset-contains.md) §3).
+**Always resample companies, not filings** ([02](./02-what-the-dataset-contains.md) §3).
+The known-answer check is that a clustered interval must come out *wider* than a naive one
+on the same data.
 
 ---
 
@@ -138,10 +81,10 @@ same items, and **always resample companies, not filings** (see
 
 | | | Needs |
 |---|---|---|
-| A | **Classical forensic-accounting features.** Beneish's M-score is **done** — ROC-AUC 0.436, below chance, worse than a date-only control on the same rows ([03](./03-forensic-accounting-features.md)). Dechow F-Score, Benford's Law and Jones-model accruals remain. | No model calls |
+| A | **Classical forensic-accounting features.** Beneish's M-score is **done** — ROC-AUC 0.436, below chance ([03](./03-forensic-accounting-features.md)). Dechow F-Score, Benford's Law and Jones-model accruals remain. | No model calls |
 | B | **Open-weight baseline** on dev and test splits, company-clustered intervals | Local inference |
 | C | **Era ablation** — how much of a text-based score is recoverable from era cues alone | Local inference |
-| D | **Japanese-prompt experiment** — the published eval prompt is English over a Japanese source | Local inference |
+| D | **Prompt variants** — score elicitation, the auditor framing, instruction language | Local inference |
 | E | **The agent** — multi-step investigation, temporal diffing, cross-source corroboration | Local inference |
 | F | **Event-sourced replay and per-run accounting** | Harness only |
 
@@ -149,14 +92,11 @@ same items, and **always resample companies, not filings** (see
 
 - What is the real base rate of fraud-corrected annual reports among Japanese listed
   companies? Computable from the local metadata archive.
-- ~~Do parse failures correlate with filing year or the label?~~ **Partly answered**
-  ([03](./03-forensic-accounting-features.md) §1): among training rows, statements parse
-  completely for 68.3%, and those rows carry a 13-point higher fraud rate and a 1.6-year
-  later mean fiscal year. Whether company size or accounting standard also drive it is
-  still open.
 - Why does the accruals index run backwards? The 循環取引 hypothesis in
   [03](./03-forensic-accounting-features.md) §5 is checkable against the recovered
   amendment texts.
+- Do parse failures also track company size or accounting standard? Filing year and the
+  label are already known to ([03](./03-forensic-accounting-features.md) §1).
 - Can an out-of-time split have a positive class at all, given the right-censoring in
   [02](./02-what-the-dataset-contains.md) §2?
 
