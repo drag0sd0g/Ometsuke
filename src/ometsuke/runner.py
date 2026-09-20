@@ -127,6 +127,7 @@ def record(
                           {"reason": str(exc), "response_hash": response_hash,
                            "stop_reason": response.stop_reason},
                           item_id=item_id, step_idx=0)
+            conn.commit()
             if max_consecutive_failures is not None and consecutive >= max_consecutive_failures:
                 finish_run(conn, run_id, {"mode": "record", "items_ok": ok,
                                           "items_failed": failed, "aborted": True,
@@ -142,6 +143,11 @@ def record(
             "score": verdict.score, "label": verdict.label,
             "response_hash": response_hash,
         }, item_id=item_id, step_idx=0)
+        # Each item is an independent unit of work, so each one is durable on its own.
+        # Committing only at the end would mean an interruption in hour nine of a ten-hour
+        # sweep discards all nine, and would hold a write lock that blocks every reader
+        # for the duration.
+        conn.commit()
 
     finish_run(conn, run_id, {"mode": "record", "items_ok": ok, "items_failed": failed})
     return run_id

@@ -176,3 +176,63 @@ def test_occasional_failures_do_not_abort(tmp_path):
     summary = events.read(conn, run_id, kind=events.RUN_COMPLETED)[0]["payload"]
     assert summary["items_ok"] == 10 and summary["items_failed"] == 10
     assert "aborted" not in summary
+
+
+# --- durability of a partial run -----------------------------------------------------
+
+def test_an_interrupted_run_keeps_the_items_it_finished(tmp_path):
+    """A ten-hour sweep killed in hour nine must not discard all nine.
+
+    Each item is an independent unit of work, so each is committed on its own. The check
+    reads from a *separate connection*, which is the only way to prove the data is really
+    committed rather than merely sitting in the writer's open transaction.
+    """
+    import json as _json
+    import sqlite3
+
+    from ometsuke.model import ModelResponse
+
+    class DiesAfterThree:
+        name = "fake@" + DIGEST
+
+        def __init__(self):
+            self.n = 0
+
+        def complete(self, prompt):
+            self.n += 1
+            if self.n > 3:
+                raise KeyboardInterrupt("simulating an interrupted sweep")
+            return ModelResponse(text=_json.dumps({"score": 7, "label": False}))
+
+    path = tmp_path / "runs.sqlite"
+    conn = db.connect(path)
+    with pytest.raises(KeyboardInterrupt):
+        runner.record(conn, _items(50), DiesAfterThree(), lambda i: "p", split="dev")
+
+    # A fresh connection sees only what was actually committed.
+    other = sqlite3.connect(path)
+    other.row_factory = sqlite3.Row
+    run_id = other.execute("SELECT run_id FROM runs").fetchone()["run_id"]
+    survived = other.execute(
+        "SELECT COUNT(*) c FROM events WHERE run_id = ? AND kind = ?",
+        (run_id, events.PREDICTION_EMITTED),
+    ).fetchone()["c"]
+    assert survived == 3, "completed items must survive an interruption"
+    assert other.execute(
+        "SELECT finished_at FROM runs WHERE run_id = ?", (run_id,)
+    ).fetchone()["finished_at"] is None, "an interrupted run must not look finished"
+
+
+def test_a_reader_is_not_blocked_while_a_run_is_writing(tmp_path):
+    """Without WAL the writer holds an exclusive lock and progress cannot be inspected."""
+    import sqlite3
+
+    path = tmp_path / "runs.sqlite"
+    writer = db.connect(path)
+    writer.execute(
+        "INSERT INTO runs (run_id, dataset_ver, split, config_hash, git_sha, started_at) "
+        "VALUES ('r1','v','dev','c','g','t')"
+    )
+    # Deliberately left uncommitted, as a run in flight would be.
+    reader = sqlite3.connect(path)
+    reader.execute("SELECT COUNT(*) FROM runs").fetchone()  # must not raise "database is locked"

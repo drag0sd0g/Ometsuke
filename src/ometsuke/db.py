@@ -58,6 +58,10 @@ def connect(path: str | pathlib.Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    # WAL lets a reader inspect a run while it is still being written. Without it, the
+    # writer holds an exclusive lock for the whole run — which for a 15-hour sweep means
+    # no progress checks at all.
+    conn.execute("PRAGMA journal_mode = WAL")
     conn.executescript(SCHEMA)
     return conn
 
