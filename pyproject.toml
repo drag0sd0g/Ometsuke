@@ -13,7 +13,11 @@ dependencies = [
 ometsuke = "ometsuke.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8.0", "ruff>=0.6"]
+dev = [
+    "mutmut>=3.8.0",
+    "pytest>=8.0",
+    "ruff>=0.6",
+]
 
 [build-system]
 requires = ["hatchling"]
@@ -32,3 +36,9 @@ select = ["E", "F", "I", "UP", "B"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+
+[tool.mutmut]
+source_paths = ["src/ometsuke"]
+do_not_mutate = ["src/ometsuke/cli.py"]
+mutate_only_covered_lines = true
+process_isolation = "forkserver"

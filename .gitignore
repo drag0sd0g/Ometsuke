@@ -1,7 +1,6 @@
 PROJECT-*.md
 
-# Archived EDINET data — large, regenerable only while EDINET still serves it.
-# Kept out of git deliberately; see docs/03 §3.
+# Archived EDINET data — see docs/02 §3
 data/
 
 # Python
@@ -9,3 +8,7 @@ data/
 __pycache__/
 *.pyc
 .DS_Store
+
+# mutmut build artefacts
+mutants/
+mutmut-stats.json
