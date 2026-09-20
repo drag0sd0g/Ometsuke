@@ -8,6 +8,39 @@ follow the argument rather than take it on faith.
 
 ---
 
+## Quick reference
+
+One line each. Follow the link for the version that actually explains it.
+
+| | | |
+|---|---|---|
+| **ROC-AUC** | pick one fraud and one clean filing at random — the probability the fraud scores higher. 1.0 perfect, 0.5 coin flip, **below 0.5 is anti-correlated** | [§2](#roc-auc) |
+| **MCC** | Matthews correlation coefficient. −1 to +1 summary of a confusion matrix that stays honest under class imbalance; 0 is chance | [§2](#mcc-matthews-correlation-coefficient) |
+| **CI** | confidence interval. `0.568 [0.409, 0.725]`. An AUC interval containing **0.5** means indistinguishable from a coin flip | [§3](#confidence-interval) |
+| **base rate** | proportion of positives in the data. 49% here, under 1% in the real world | [§2](#why-accuracy-is-useless) |
+| **bootstrap** | resample your own data thousands of times to see how much a number wobbles | [§3](#bootstrap) |
+| **clustered** | resample whole **companies**, not filings — one company's filings describe one scandal | [§3](#clustered-resampling--the-one-that-matters-most-here) |
+| **paired bootstrap** | compare two systems on identical items and bootstrap the *difference* — far more sensitive | [§3](#paired-bootstrap) |
+| **power** | whether n is large enough for a difference to be detectable at all. A p99 from ten requests | [§3](#statistical-power) |
+| **right-censoring** | a filing counts as fraud only once someone *found* the fraud — so recent filings look innocent | [§4](#right-censoring) |
+| **selection bias** | scoring only the rows that parsed, when parsing correlates with the label | [§4](#selection-bias-non-random-missingness) |
+| **contamination** | the model was trained on text containing the answers, so it recalls rather than reasons | [§4](#contamination) |
+| **token** | the model's unit of work, ~0.79 per Japanese character here | [§5](#5-running-a-language-model-locally) |
+| **context window** | how much the model holds per request — 131,072 tokens | [§5](#5-running-a-language-model-locally) |
+| **prefill / decode** | reading the prompt (parallel, 782 tok/s) vs generating the answer (serial, 49 tok/s) | [§5](#5-running-a-language-model-locally) |
+| **KV cache** | memoised state so each token doesn't reprocess the prompt; why long contexts cost memory | [§5](#5-running-a-language-model-locally) |
+| **temperature** | randomness in token choice. 0 = always the likeliest token — deterministic, but **not** bit-reproducible | [§5](#5-running-a-language-model-locally) |
+| **MoE** | mixture of experts — 8 of 256 sub-networks fire per token, so 125B parameters run at laptop speed | [§5](#5-running-a-language-model-locally) |
+| **quantization** | weights stored at reduced precision (`Q4` ≈ 4 bits vs 16). Smaller, faster, slightly lossy | [§5](#5-running-a-language-model-locally) |
+| **accruals** | the gap between profit *reported* and cash actually *received* | [§6](#6-the-accounting-side) |
+| **M-score** | Beneish's eight-ratio screen for earnings manipulation. Above −1.78 flags manipulation | [§6](#6-the-accounting-side) |
+| **EDINET** | Japan's regulatory disclosure system. Public API; **deletes documents after ten years** | [§1](#1-the-task) |
+| **XBRL** | the structured markup filings are published in — where `bs` / `pl` / `cf` come from | [§1](#1-the-task) |
+
+Japanese terms are in [§7](#7-japanese-terms).
+
+---
+
 ## 1. The task
 
 **有価証券報告書 (yūka shōken hōkokusho)** — a Japanese annual securities report. The
