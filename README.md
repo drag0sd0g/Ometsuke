@@ -58,6 +58,7 @@ here is a research claim, not a product claim.
 | [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how the fraud labels were built, verified against the shipped code |
 | [`docs/02`](docs/02-what-the-dataset-contains.md) | what the dataset contains, with reproduction steps |
 | [`docs/03`](docs/03-forensic-accounting-features.md) | Beneish's M-score on this benchmark, and why it fails |
+| [`docs/04`](docs/04-background.md) | **new to the statistics or the accounting? start here** — every term, explained by analogy to distributed systems |
 | `scripts/` | reconstruction of the amendment → filing mapping the dataset omits — a ten-year EDINET sweep, verified 15/15 against the XBRL element Sakana used, recovering 396 of 534 positives |
 | `src/ometsuke/` | the harness |
 

@@ -102,6 +102,11 @@ on the same data.
 
 ## Sources
 
+Unfamiliar with ROC-AUC, bootstrapping, clustered resampling or right-censoring?
+[04 — Background](./04-background.md) defines every term this project uses, by analogy to
+distributed systems.
+
+
 - **EDINET-Bench** — Sugiura, Ishida, Makino, Tazuke, Nakagawa, Nakago, Ha. Sakana AI, ICLR 2026.
 - **Herculean** — agentic finance benchmark, arXiv 2605.14355, May 2026.
 - **EDINET API specification** — ESE140206.pdf, for the ten-year retention rule.
