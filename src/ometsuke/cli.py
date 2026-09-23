@@ -45,6 +45,9 @@ def main(argv: list[str] | None = None) -> int:
                      help="seconds per call; the longest filings need ~80s of prefill alone")
     run.add_argument("--prompt", default="baseline",
                      help="prompt variant; 'baseline' is the control")
+    run.add_argument("--pairs", metavar="JSONL",
+                     help="score two-year section pairs from this file instead of a "
+                          "dataset split (see scripts/extract_sections.py)")
     run.add_argument("--sheets", default=",".join(prompts.DEFAULT_SHEETS),
                      help="comma-separated fields to put in the prompt; 'text' is the "
                           "narrative report. 'meta' is refused — it carries the filing date")
@@ -70,7 +73,26 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     conn = db.connect(args.db)
 
-    if args.command == "run":
+    if args.command == "run" and args.pairs:
+        import json as _json
+        pairs = [_json.loads(line) for line in pathlib.Path(args.pairs).open(encoding="utf-8")]
+        pairs = [p for p in pairs if not p["sections_missing"]]
+        if args.limit:
+            pairs = pairs[: args.limit]
+        model = _model(args.model, args.host, args.timeout)
+        try:
+            build = prompts.pair_builder(args.prompt)
+        except KeyError as exc:
+            raise SystemExit(str(exc)) from exc
+        run_id = runner.record(conn, pairs, model, build,
+                               split=args.split,
+                               dataset_ver=f"section-pairs:{pathlib.Path(args.pairs).name}",
+                               config={**getattr(model, "config", dict)(),
+                                       **prompts.config(args.prompt),
+                                       "source": "section-pairs", "n_pairs": len(pairs)})
+        print(run_id)
+
+    elif args.command == "run":
         rows = dataset.load(args.split, limit=args.limit)
         source = "train" if args.split == "dev" else args.split
         prov = dataset.provenance(source)

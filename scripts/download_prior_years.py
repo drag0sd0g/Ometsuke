@@ -1,4 +1,8 @@
-"""Download the prior-year 有価証券報告書 named in data/prior-year-map.csv.
+"""Download the 有価証券報告書 named in data/prior-year-map.csv — either year.
+
+`--column prior_doc_id` fetches the prior year, `--column doc_id` the benchmark filing
+itself. Both are needed: diffing Sakana's extraction of one year against ours of the
+other would measure the extraction difference as much as the filing difference.
 
 Fetches the XBRL-to-CSV bundle (API type 5) rather than the PDF. The benchmark's own
 `text` field comes from structured extraction, so taking the structured form here keeps
@@ -30,8 +34,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 DATA = ROOT / "data"
-OUT = DATA / "prior-years"
-LEDGER = OUT / "_ledger.jsonl"
+DOC_API_OUT = {"prior_doc_id": "prior-years", "doc_id": "current-years"}
 DOC_API = "https://api.edinet-fsa.go.jp/api/v2/documents/"
 CSV_TYPE = 5
 
@@ -67,6 +70,8 @@ def main() -> int:
     parser.add_argument("--sleep", type=float, default=0.2)
     parser.add_argument("--limit", type=int, default=None, help="stop after N (smoke test)")
     parser.add_argument("--map", default="prior-year-map.csv")
+    parser.add_argument("--column", default="prior_doc_id", choices=list(DOC_API_OUT),
+                        help="which column of the map to download")
     args = parser.parse_args()
 
     key = os.environ.get("EDINET_KEY") or os.environ.get("EDINET_API_KEY")
@@ -74,14 +79,16 @@ def main() -> int:
         print("EDINET_KEY is not set", file=sys.stderr)
         return 2
 
+    out_dir = DATA / DOC_API_OUT[args.column]
+    ledger_path = out_dir / "_ledger.jsonl"
     rows = list(csv.DictReader((DATA / args.map).open(encoding="utf-8")))
-    doc_ids = sorted({r["prior_doc_id"] for r in rows})
+    doc_ids = sorted({r[args.column] for r in rows})
     if args.limit:
         doc_ids = doc_ids[: args.limit]
-    OUT.mkdir(parents=True, exist_ok=True)
+    out_dir.mkdir(parents=True, exist_ok=True)
 
     def target(doc_id: str) -> pathlib.Path:
-        return OUT / f"{doc_id}.zip"
+        return out_dir / f"{doc_id}.zip"
 
     jobs = [d for d in doc_ids
             if not (target(d).exists() and target(d).stat().st_size > 1024)]
@@ -106,7 +113,7 @@ def main() -> int:
 
     done = failed = total_bytes = 0
     started = time.time()
-    with LEDGER.open("a", encoding="utf-8") as ledger:
+    with ledger_path.open("a", encoding="utf-8") as ledger:
         with concurrent.futures.ThreadPoolExecutor(max_workers=args.workers) as pool:
             for result in pool.map(run, jobs):
                 ledger.write(json.dumps(result) + "\n")

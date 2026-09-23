@@ -117,11 +117,75 @@ JSON:
 抽出された有価証券報告書は以下のとおりです。
 """
 
+# --- two-year section variants -------------------------------------------------------
+#
+# These read narrative sections rather than the structured sheets, so neither is
+# comparable to `baseline`: a difference could come from the extra year or from the change
+# of input. They are built as a matched pair and compared only to each other.
+#
+#   SECTIONS_CURRENT  risk + segment text, one year   — the control
+#   SECTIONS_PRIOR    the same sections, two years    — the hypothesis
+#
+# Identical but for the comparison instructions, so the paired difference isolates the
+# prior year's contribution and nothing else. Neither carries the auditor framing: it was
+# measured to shift calibration without shifting ranking, and omitting it from both keeps
+# it out of the comparison entirely.
+
+_SECTION_INTRO = """\
+You are reviewing a Japanese company's annual securities report for signs of accounting \
+fraud. You are given the business risks section (事業等のリスク) and the segment \
+information notes (セグメント情報).
+"""
+
+_SECTION_COMPARE = """\
+You are given two consecutive years of each section. Compare them. Consider in particular:
+- risks that appear, disappear, or change in emphasis or specificity
+- segment boundaries that are redrawn, merged, split, or renamed
+- whether any such change is explained in the filing, and whether the explanation is \
+adequate
+
+Changes are normal — businesses evolve and disclosure standards shift. Judge whether the \
+*pattern* of change is consistent with ordinary business evolution, or with an attempt to \
+obscure.
+"""
+
+SECTIONS_CURRENT = _SECTION_INTRO + _SCHEMA
+SECTIONS_PRIOR = _SECTION_INTRO + _SECTION_COMPARE + _SCHEMA
+
+
+def _render_sections(sections: dict[str, str]) -> str:
+    return "\n\n".join(
+        f"[{label}]\n{sections[label]}" for label in ("risks", "segments") if sections.get(label)
+    )
+
+
+def pair_builder(name: str):
+    """A prompt builder over `data/section-pairs.jsonl` rows rather than dataset rows.
+
+    The current year is always shown. The prior year is shown only by the variant that
+    asks for a comparison, so the control cannot accidentally see it.
+    """
+    template = template_for(name)
+    two_year = name == "sections-prior"
+
+    def _build(item: dict[str, Any]) -> str:
+        body = f"=== FY{item['fiscal_year']} (the filing under review) ===\n"
+        body += _render_sections(item["current"])
+        if two_year:
+            body += (f"\n\n=== FY{item['fiscal_year'] - 1} (the prior year) ===\n"
+                     + _render_sections(item["prior"]))
+        return template + "\n" + body
+
+    return _build
+
+
 TEMPLATES: dict[str, str] = {
     "baseline": BASELINE,
     "anchored": ANCHORED,
     "no-cpa": NO_CPA_FRAMING,
     "combined": COMBINED,
+    "sections-current": SECTIONS_CURRENT,
+    "sections-prior": SECTIONS_PRIOR,
     "japanese": JAPANESE,
 }
 
