@@ -227,6 +227,46 @@ appears here. The archive and download pipeline in `scripts/` already support it
 
 ---
 
+### The ten-year wall biases any multi-year analysis
+
+§3 records that EDINET deletes documents ten years after submission. That limits what can
+be *rebuilt*; it also silently restricts what can be *asked*.
+
+Indexing every 有価証券報告書 in the ten-year metadata archive — 44,514 annual reports
+across 5,471 companies — and looking up the prior year for each training filing:
+
+| | n | fraud rate | mean fiscal year |
+|---|---:|---:|---:|
+| prior year **retrievable** | 566 (65%) | **44.2%** | 2020.6 |
+| prior year **gone** | 299 (35%) | **54.2%** | 2016.2 |
+
+**Almost every gap falls in FY2015–2017.** A filing from FY2015 needs a prior year
+submitted around 2015, and that is already past the wall.
+
+**Metadata outlives the document.** Five of these had a metadata record but returned a
+404 — the archive is a snapshot taken in August 2026 and the documents behind it keep
+expiring. EDINET answers such a request with HTTP 200 carrying a JSON error body, so a
+downloader that trusts the status code will save 142-byte files and report success. The
+map filters on submission date, and the downloader validates content rather than status.
+
+**Why this biases the label.** Positives skew old (§4). The wall therefore removes
+positives preferentially: the analysable subset runs 3.3 points *less* fraudulent than the
+full split and is four and a half years more recent.
+
+**Consequence for any multi-year experiment.** A prior-year comparison can only run on the
+566 filings whose prior year survives, and that population differs from the one every
+published baseline was measured on. Two rules follow:
+
+- Compare against a control **restricted to the same 566 filings**, never against a
+  score computed over all 865. Otherwise the context effect is confounded with an era
+  shift, and era alone is worth ROC-AUC 0.594.
+- State the restriction in any result: it measures whether prior-year context helps *on
+  filings recent enough that EDINET still holds the prior year*.
+
+The wall advances one day per day, so this subset shrinks over time.
+
+---
+
 ## 6. What the amendment texts contain
 
 574 提出理由 were extracted from the recovered amendments. Document frequency across all

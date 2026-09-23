@@ -53,6 +53,10 @@ changes calibration substantially; each leaves ROC-AUC unmoved with a tight inte
 (−0.004 [−0.037, +0.028] and −0.008 [−0.038, +0.024]). Forcing a graded score turned 3
 distinct values into 9 and changed nothing.
 
+**The ten-year wall biases any multi-year analysis.** A prior-year filing is retrievable
+for only 566 of 865 training filings, and the survivors run 44.2% fraud against 54.2%
+among the rest — the wall removes positives preferentially.
+
 **Having a second filing *is* the label.** All 105 multi-filing companies in the training
 split are positive; no all-negative company has more than one filing, and all 253
 consecutive-year pairs end in a fraud label. Any analysis using a company's other filings
