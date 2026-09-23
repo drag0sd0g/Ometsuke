@@ -47,6 +47,12 @@ has been verified by a certified public accountant…"* changes AUC by **−0.00
 "clean" and dropping MCC from 0.141 to 0.102. Every threshold-based metric on this
 benchmark is partly a report about that sentence; rank-based metrics are untouched.
 
+**Prompting does not move the ranking.** Three variables tested across three full sweeps
+of 865 filings — the auditor framing, the score scale, the instruction language. Each
+changes calibration substantially; each leaves ROC-AUC unmoved with a tight interval
+(−0.004 [−0.037, +0.028] and −0.008 [−0.038, +0.024]). Forcing a graded score turned 3
+distinct values into 9 and changed nothing.
+
 **Having a second filing *is* the label.** All 105 multi-filing companies in the training
 split are positive; no all-negative company has more than one filing, and all 253
 consecutive-year pairs end in a fraud label. Any analysis using a company's other filings
