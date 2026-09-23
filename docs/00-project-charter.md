@@ -85,7 +85,8 @@ on the same data.
 | B | **Open-weight baseline.** Train split **done** — 0.550 [0.515, 0.582], indistinguishable from a date-only control ([05](./05-open-weight-baseline.md)). Test split still untouched. | Local inference |
 | C | **Era ablation** — how much of a text-based score is recoverable from era cues alone | Local inference |
 | D | **Prompt variants — done, all null.** Auditor framing, score elicitation and instruction language each shift calibration and leave ranking unmoved ([05](./05-open-weight-baseline.md) §4). Prompting is not the lever. |
-| E | **The agent** — multi-step investigation, temporal diffing, cross-source corroboration | Local inference |
+| E | **The agent.** Its cheapest component — prior-year temporal diffing — is **tested and null** ([06](./06-narrative-sections.md) §3). Multi-source corroboration untested. | Local inference |
+| G | **Input selection — the one thing that worked.** Narrative sections beat the financial statements by +0.086 ([06](./06-narrative-sections.md) §2). Which other sections carry signal is open. | Local inference |
 | F | **Event-sourced replay and per-run accounting** | Harness only |
 
 ## Open questions
