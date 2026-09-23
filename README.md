@@ -47,6 +47,11 @@ has been verified by a certified public accountant…"* changes AUC by **−0.00
 "clean" and dropping MCC from 0.141 to 0.102. Every threshold-based metric on this
 benchmark is partly a report about that sentence; rank-based metrics are untouched.
 
+**Having a second filing *is* the label.** All 105 multi-filing companies in the training
+split are positive; no all-negative company has more than one filing, and all 253
+consecutive-year pairs end in a fraud label. Any analysis using a company's other filings
+as context is reading the answer key.
+
 **Whether a filing can be scored at all depends on its label.** Statements parse
 completely for 68.3% of rows, and those rows carry a 13-point higher fraud rate and a
 1.6-year later mean fiscal year than the ones that drop out.

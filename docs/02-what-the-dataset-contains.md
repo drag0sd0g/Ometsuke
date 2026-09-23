@@ -196,6 +196,37 @@ Also worth recording: 4 of the 534 positives are not plain 有価証券報告書
 
 ---
 
+### Having a second filing *is* the label
+
+The clustering above has a sharper consequence than wide intervals. On the training split:
+
+| filings per company | companies |
+|---:|---:|
+| 1 | 498 |
+| 2–7 | **105** |
+
+**All 105 multi-filing companies carry a positive label. Not one all-negative company has
+more than a single filing.** And of 253 consecutive-year pairs, the later filing is
+labelled fraud in **253** of them — no counterexample exists anywhere in the split.
+
+**Why.** Positives enter the dataset through flagged amendments, and one scandal typically
+produces corrections across several years, so a fraudulent company contributes two to
+seven filings. Negatives were sampled roughly one per company. Multi-filing status is
+therefore a construction artifact that predicts the label perfectly.
+
+**What it invalidates.** Any analysis that uses a company's *other* filings as context —
+prior-year diffing, trend features, "has this company filed before?" — is, on this split,
+reading the answer key. It will produce an excellent number that measures dataset
+assembly. This is the temporal analogue of §4's era leakage, and it is stricter: era is a
+statistical tendency, this is deterministic.
+
+**What still works.** Nothing stops the prior-year filing being fetched from EDINET
+directly rather than taken from the benchmark. Availability then no longer correlates with
+the label, because every listed company has a prior-year 有価証券報告書 whether or not it
+appears here. The archive and download pipeline in `scripts/` already support it.
+
+---
+
 ## 6. What the amendment texts contain
 
 574 提出理由 were extracted from the recovered amendments. Document frequency across all
