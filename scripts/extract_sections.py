@@ -68,6 +68,8 @@ def main() -> int:
                         help="directory under data/ holding the current-year bundles")
     parser.add_argument("--prior", default="prior-years")
     parser.add_argument("--out", default="section-pairs.jsonl")
+    parser.add_argument("--no-prior", action="store_true",
+                        help="extract the current year only")
     args = parser.parse_args()
 
     rows = list(csv.DictReader((DATA / args.map).open(encoding="utf-8")))
@@ -82,12 +84,13 @@ def main() -> int:
         for row in pairs:
             current = DATA / args.current / f"{row['doc_id']}.zip"
             prior = DATA / args.prior / f"{row['prior_doc_id']}.zip"
-            if not current.exists() or not prior.exists():
+            if not current.exists() or (not args.no_prior and not prior.exists()):
                 missing["bundle absent"] += 1
                 continue
             now = read_sections(current, SECTIONS)
-            then = read_sections(prior, SECTIONS)
-            absent = [k for k in SECTIONS if k not in now or k not in then]
+            then = {} if args.no_prior else read_sections(prior, SECTIONS)
+            absent = [k for k in SECTIONS
+                      if k not in now or (not args.no_prior and k not in then)]
             for k in absent:
                 missing[f"section {k}"] += 1
             handle.write(json.dumps({

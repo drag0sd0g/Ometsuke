@@ -64,6 +64,10 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--split", default="train", choices=["dev", "train", "test"])
     parser.add_argument("--out", default="prior-year-map.csv")
+    parser.add_argument("--current-only", action="store_true",
+                        help="skip the prior-year lookup — for variants that read only "
+                             "the filing under review, where the ten-year wall does not "
+                             "apply and coverage is limited only by section presence")
     args = parser.parse_args()
 
     sys.path.insert(0, str(ROOT / "src"))
@@ -83,13 +87,31 @@ def main() -> int:
             fiscal_year = int(str(json.loads(row["meta"])["当事業年度終了日"])[:4])
         except Exception:
             continue
-        prior = index.get((row["edinet_code"], str(fiscal_year - 1)))
         record = {
             "doc_id": row["doc_id"],
             "edinet_code": row["edinet_code"],
             "fiscal_year": fiscal_year,
             "label": int(bool(row["label"])),
         }
+        blank = {"prior_doc_id": "", "prior_fiscal_year": "", "prior_period_end": "",
+                 "prior_submitted": "", "prior_has_csv": ""}
+
+        if args.current_only:
+            # The wall applies to the filing under review too, not only its prior year.
+            # This catches only part of it: the metadata archive itself begins
+            # 2016-08-22, so a filing submitted in 2015 has no record here and its date
+            # cannot be checked. The download is the authoritative test — it 404s — and
+            # the loss is not random. On the test split 48 of 224 were unreachable, with
+            # mean FY 2015.3 and 64.6% fraud against 51.7% among the survivors.
+            own = index.get((row["edinet_code"], str(fiscal_year)))
+            if own is not None and own.get("submitDateTime", "")[:10] < wall:
+                past_wall.append(record)
+                missing.append(record)
+                continue
+            found.append({**record, **blank})
+            continue
+
+        prior = index.get((row["edinet_code"], str(fiscal_year - 1)))
         if prior is None:
             missing.append(record)
             continue
@@ -145,11 +167,14 @@ def main() -> int:
     total = len(found) + len(missing)
     print(f"\nprior year retrievable for {len(found)} of {total} "
           f"({100 * len(found) / total:.1f}%)")
-    print(f"  retrievable: {coverage['retrievable']['fraud_rate']:.1%} fraud, "
-          f"mean FY {coverage['retrievable']['mean_fiscal_year']}")
-    print(f"  gone:        {coverage['gone']['fraud_rate']:.1%} fraud, "
-          f"mean FY {coverage['gone']['mean_fiscal_year']}")
-    print(f"  of those, {len(past_wall)} had metadata but the document is past the wall")
+    for label, stats in (("retrievable", coverage["retrievable"]), ("gone", coverage["gone"])):
+        if stats["n"]:
+            print(f"  {label:<12} {stats['fraud_rate']:.1%} fraud, "
+                  f"mean FY {stats['mean_fiscal_year']}")
+        else:
+            print(f"  {label:<12} none")
+    if past_wall:
+        print(f"  of those, {len(past_wall)} had metadata but the document is past the wall")
     print(f"\nwrote {out_path} and prior-year-coverage.json")
     return 0
 

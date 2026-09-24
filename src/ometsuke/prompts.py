@@ -131,11 +131,16 @@ JSON:
 # measured to shift calibration without shifting ranking, and omitting it from both keeps
 # it out of the comparison entirely.
 
-_SECTION_INTRO = """\
-You are reviewing a Japanese company's annual securities report for signs of accounting \
-fraud. You are given the business risks section (事業等のリスク) and the segment \
-information notes (セグメント情報).
-"""
+def _section_intro(what: str) -> str:
+    return (
+        "You are reviewing a Japanese company's annual securities report for signs of "
+        f"accounting fraud. You are given {what}.\n"
+    )
+
+
+_BOTH = ("the business risks section (事業等のリスク) and the segment information "
+         "notes (セグメント情報)")
+_SECTION_INTRO = _section_intro(_BOTH)
 
 _SECTION_COMPARE = """\
 You are given two consecutive years of each section. Compare them. Consider in particular:
@@ -152,28 +157,51 @@ obscure.
 SECTIONS_CURRENT = _SECTION_INTRO + _SCHEMA
 SECTIONS_PRIOR = _SECTION_INTRO + _SECTION_COMPARE + _SCHEMA
 
+# Decomposition: which of the two sections carries the signal. Same shape, one section.
+SECTIONS_RISKS = _section_intro("the business risks section (事業等のリスク)") + _SCHEMA
+SECTIONS_SEGMENTS = _section_intro(
+    "the segment information notes (セグメント情報)") + _SCHEMA
 
-def _render_sections(sections: dict[str, str]) -> str:
+# The control missing from the prior-year test: both years present, but no instruction to
+# compare them. Separates "more context" from "told to weigh change" — without it a null
+# on SECTIONS_PRIOR cannot distinguish the two.
+SECTIONS_BOTH_QUIET = _SECTION_INTRO + (
+    "You are given two consecutive years of each section.\n") + _SCHEMA
+
+
+def _render_sections(available: dict[str, str], wanted: tuple[str, ...]) -> str:
     return "\n\n".join(
-        f"[{label}]\n{sections[label]}" for label in ("risks", "segments") if sections.get(label)
+        f"[{label}]\n{available[label]}" for label in wanted if available.get(label)
     )
 
 
-def pair_builder(name: str):
-    """A prompt builder over `data/section-pairs.jsonl` rows rather than dataset rows.
+# Which sections each variant renders, and whether it sees the prior year. Declared here
+# rather than inferred from the name, so the prompt text and the body can never disagree
+# about what the model was actually shown.
+PAIR_VARIANTS: dict[str, tuple[tuple[str, ...], bool]] = {
+    "sections-current":     (("risks", "segments"), False),
+    "sections-prior":       (("risks", "segments"), True),
+    "sections-risks":       (("risks",), False),
+    "sections-segments":    (("segments",), False),
+    "sections-both-quiet":  (("risks", "segments"), True),
+}
 
-    The current year is always shown. The prior year is shown only by the variant that
-    asks for a comparison, so the control cannot accidentally see it.
-    """
+
+def pair_builder(name: str):
+    """A prompt builder over `data/section-pairs.jsonl` rows rather than dataset rows."""
     template = template_for(name)
-    two_year = name == "sections-prior"
+    try:
+        sections, two_year = PAIR_VARIANTS[name]
+    except KeyError:
+        raise KeyError(
+            f"{name!r} is not a section variant; have {sorted(PAIR_VARIANTS)}") from None
 
     def _build(item: dict[str, Any]) -> str:
         body = f"=== FY{item['fiscal_year']} (the filing under review) ===\n"
-        body += _render_sections(item["current"])
+        body += _render_sections(item["current"], sections)
         if two_year:
             body += (f"\n\n=== FY{item['fiscal_year'] - 1} (the prior year) ===\n"
-                     + _render_sections(item["prior"]))
+                     + _render_sections(item["prior"], sections))
         return template + "\n" + body
 
     return _build
@@ -186,6 +214,9 @@ TEMPLATES: dict[str, str] = {
     "combined": COMBINED,
     "sections-current": SECTIONS_CURRENT,
     "sections-prior": SECTIONS_PRIOR,
+    "sections-risks": SECTIONS_RISKS,
+    "sections-segments": SECTIONS_SEGMENTS,
+    "sections-both-quiet": SECTIONS_BOTH_QUIET,
     "japanese": JAPANESE,
 }
 

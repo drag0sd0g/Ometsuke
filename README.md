@@ -47,12 +47,12 @@ has been verified by a certified public accountant…"* changes AUC by **−0.00
 "clean" and dropping MCC from 0.141 to 0.102. Every threshold-based metric on this
 benchmark is partly a report about that sentence; rank-based metrics are untouched.
 
-**What the model reads matters; how it is asked does not.** Risk and segment narrative
-text scores **ROC-AUC 0.648** [0.599, 0.697] against **0.562** [0.519, 0.604] for the
-financial statements on the same 529 filings — **+0.086 [+0.033, +0.137]**, the first
-interval in this project to exclude zero. Adding the *prior year's* disclosures on top
-does not help (−0.035 [−0.074, +0.006]).
-→ [docs/06](docs/06-narrative-sections.md)
+**Nothing tried recovers the labels from a single filing.** Seven configurations, six
+nulls. Narrative sections beat the financial statements by **+0.086 [+0.033, +0.137]** on
+the training split — then came back **−0.004 [−0.111, +0.100]** on the held-out one. The
+prior year adds nothing (+0.001 [−0.039, +0.040]); instructing the model to compare years
+costs 0.035. Beneish's M-score lands below chance. Filing date alone scores 0.594.
+→ [docs/07](docs/07-conclusion.md)
 
 **Prompting does not move the ranking.** Three variables tested across three full sweeps
 of 865 filings — the auditor framing, the score scale, the instruction language. Each
@@ -92,7 +92,8 @@ here is a research claim, not a product claim.
 | [`docs/01`](docs/01-how-edinet-bench-labels-were-made.md) | how the fraud labels were built, verified against the shipped code |
 | [`docs/02`](docs/02-what-the-dataset-contains.md) | what the dataset contains, with reproduction steps |
 | [`docs/03`](docs/03-forensic-accounting-features.md) | Beneish's M-score on this benchmark, and why it fails |
-| [`docs/06`](docs/06-narrative-sections.md) | narrative sections vs financial statements, and whether the prior year helps |
+| [`docs/07`](docs/07-conclusion.md) | **the conclusion** — everything tried, what it showed, and what it does not claim |
+| [`docs/06`](docs/06-narrative-sections.md) | narrative sections vs financial statements, and the held-out test |
 | [`docs/05`](docs/05-open-weight-baseline.md) | the open-weight result, and what one sentence in the published prompt does to it |
 | [`docs/04`](docs/04-background.md) | **new to the statistics or the accounting? start here** — every term, explained by analogy to distributed systems |
 | `scripts/` | reconstruction of the amendment → filing mapping the dataset omits — a ten-year EDINET sweep, verified 15/15 against the XBRL element Sakana used, recovering 396 of 534 positives |

@@ -1,6 +1,7 @@
 # Ometsuke — Project Charter
 
 What this project is, and the constraints that fix its scope.
+**Result: [07 — Conclusion](./07-conclusion.md).**
 
 ---
 
@@ -82,11 +83,11 @@ on the same data.
 | | | Needs |
 |---|---|---|
 | A | **Classical forensic-accounting features.** Beneish's M-score is **done** — ROC-AUC 0.438, below chance ([03](./03-forensic-accounting-features.md)). Dechow F-Score, Benford's Law and Jones-model accruals remain. | No model calls |
-| B | **Open-weight baseline.** Train split **done** — 0.550 [0.515, 0.582], indistinguishable from a date-only control ([05](./05-open-weight-baseline.md)). Test split still untouched. | Local inference |
+| B | **Open-weight baseline — done.** 0.550 [0.515, 0.582] on train, indistinguishable from a date-only control ([05](./05-open-weight-baseline.md)). Test split spent once, on `sections-current` ([06](./06-narrative-sections.md) §2a). | Local inference |
 | C | **Era ablation** — how much of a text-based score is recoverable from era cues alone | Local inference |
 | D | **Prompt variants — done, all null.** Auditor framing, score elicitation and instruction language each shift calibration and leave ranking unmoved ([05](./05-open-weight-baseline.md) §4). Prompting is not the lever. |
 | E | **The agent.** Its cheapest component — prior-year temporal diffing — is **tested and null** ([06](./06-narrative-sections.md) §3). Multi-source corroboration untested. | Local inference |
-| G | **Input selection — the one thing that worked.** Narrative sections beat the financial statements by +0.086 ([06](./06-narrative-sections.md) §2). Which other sections carry signal is open. | Local inference |
+| G | **Input selection — tested, did not replicate.** Narrative sections beat the statements by +0.086 on train and −0.004 on the held-out split ([06](./06-narrative-sections.md) §2a). | Local inference |
 | F | **Event-sourced replay and per-run accounting** | Harness only |
 
 ## Open questions

@@ -1,16 +1,21 @@
-# Narrative Sections Beat Financial Statements — and the Prior Year Does Not Help
+# Narrative Sections: A Train Effect That Did Not Replicate
 
 **Depends on:** [05 — An Open-Weight Baseline](./05-open-weight-baseline.md)
-**Runs:** `95662f504aae4384` (sections-current), `5f7977a228a24bc6` (sections-prior) — 2026-09-23
+**See also:** [07 — Conclusion](./07-conclusion.md)
+**Runs:** `95662f504aae4384`, `5f7977a228a24bc6` (2026-09-23);
+held-out test and controls (2026-09-24)
 
 Everything in [05](./05-open-weight-baseline.md) read the structured sheets. Three prompt
 variables were tested there and all three returned tight nulls on ranking. This document
-changes the **input** instead, and asks two questions:
+changes the **input** instead, and asks:
 
 1. Does narrative disclosure beat financial statements?
 2. Does seeing the *prior year's* disclosure help — the premise this project was built on?
 
-**Yes to the first, decisively. No to the second.**
+**On the training split the first looked like a clear yes: +0.086, interval excluding
+zero. It did not survive the held-out test split (§2a). The second is a flat null, and a
+later control showed the extra year is inert while the instruction to compare is mildly
+harmful (§3a).**
 
 ---
 
@@ -51,7 +56,7 @@ input change is never confounded with a change of population.
 
 ---
 
-## 2. Narrative text beats the financial statements
+## 2. On the training split, narrative text beat the financial statements
 
 On those 529 filings (45.4% fraud):
 
@@ -64,18 +69,40 @@ On those 529 filings (45.4% fraud):
 > **sections-current − baseline = +0.086, 95% CI [+0.033, +0.137].**
 > **The interval excludes zero.**
 
-This is the first intervention in the project to produce a difference rather than a null.
-MCC roughly doubles alongside it, 0.141 → 0.270.
+This was the first intervention in the project to produce a difference rather than a null,
+and MCC roughly doubled alongside it, 0.141 → 0.270. **§2a is what happened when it was
+taken to held-out data.**
 
 Against the era control the gap is +0.059, CI [−0.009, +0.125] — positive, but the interval
 still grazes zero. **So narrative text is measurably better than the financial statements;
 whether it is better than knowing the filing's date is not yet established.** That
 distinction matters and should not be blurred.
 
-The direction is consistent with the two other things known about this benchmark:
-Beneish's ratios score *below* chance ([03](./03-forensic-accounting-features.md)), and
-prompt wording moves nothing. The signal that exists here is in what companies **write**,
-not in what they report numerically.
+### 2a. It did not replicate on held-out data
+
+The test split was held back for exactly this, and spent once — on a configuration fixed
+before any decomposition was run, so nothing learned afterwards could influence it.
+
+| 162 test filings, paired, 51.2% fraud | ROC-AUC | 95% CI |
+|---|---:|---|
+| structured sheets | 0.597 | [0.520, 0.672] |
+| risk + segment narrative | 0.594 | [0.490, 0.686] |
+
+> **narrative − structured = −0.004, 95% CI [−0.111, +0.100].**
+
+The train effect of +0.086 is absent. **The finding below did not replicate, and the
+section headline has been changed accordingly.**
+
+**Stated fairly in both directions.** The test interval is ±0.10 against ±0.05 on train —
+only 162 filings paired, after the ten-year wall removed 48 of the 224 and section gaps a
+few more. It therefore cannot *exclude* an effect of +0.09 either. The honest statement is
+that the train result did not replicate and the held-out data lacks the power to settle
+it, not that the effect is disproven.
+
+**Why the held-out set is smaller, and biased.** The 48 unreachable test filings have mean
+FY 2015.3 and 64.6% fraud, against 51.7% among the 176 that survive — the wall removes
+positives preferentially here as everywhere else
+([02](./02-what-the-dataset-contains.md) §5).
 
 ---
 
@@ -102,11 +129,37 @@ more sections, a cross-check against timely disclosures or price data) is untest
 requiring no agent framework at all, returns a null on 532 filings with a tight interval.
 That is worth knowing before building anything more elaborate on the same premise.
 
-**One caution on interpretation.** The prior-year prompt also *instructs* the model to
-weigh change. If change is weakly informative here, that instruction dilutes attention
-away from whatever in the current year was working — which would explain a negative point
-estimate rather than a flat one. Separating "more context" from "told to compare" needs a
-third variant: both years present, no comparison instruction. Untested.
+### 3a. The control, and what it showed
+
+That caution was tested. `sections-both-quiet` presents both years with **no** instruction
+to compare — separating "more context" from "told to weigh change".
+
+| 531 train filings, paired | ROC-AUC | 95% CI |
+|---|---:|---|
+| `sections-current` (one year) | 0.647 | [0.598, 0.694] |
+| `sections-both-quiet` (two years, quiet) | **0.648** | [0.596, 0.698] |
+| `sections-prior` (two years, told to compare) | 0.612 | [0.561, 0.662] |
+
+> **two years vs one: +0.001, CI [−0.039, +0.040]** — flat, with a tight interval.
+> **instruction vs quiet: −0.036, CI [−0.077, +0.003]**; vs one year: −0.035.
+
+**The prior year is inert. The instruction is what costs.** Two independent comparisons
+give the same direction and magnitude. Directing the model's attention toward change pulls
+it away from whatever it was already using — which is why the point estimate came out
+negative rather than merely flat.
+
+### 3b. Which section carries what
+
+| 532 train filings | ROC-AUC | 95% CI |
+|---|---:|---|
+| both sections | 0.647 | [0.599, 0.696] |
+| risks only | 0.615 | [0.555, 0.677] |
+| segments only | 0.589 | [0.532, 0.644] |
+
+Only segments-vs-both excludes zero (−0.057 [−0.109, −0.004]); risks-vs-both does not, nor
+does risks-vs-segments. **There is no clean "risk language carries it" story** — the
+sections are individually weak and only marginally better combined. Given §2a, this is
+best read as noise around a small or absent effect rather than real structure.
 
 ---
 
@@ -117,12 +170,14 @@ third variant: both years present, no comparison instruction. Untested.
 | auditor framing | −0.004 [−0.037, +0.028] |
 | score elicitation | −0.008 [−0.038, +0.024] |
 | instruction language (dev only) | worse on every axis |
-| **input: narrative vs statements** | **+0.086 [+0.033, +0.137]** |
-| prior-year context | −0.035 [−0.074, +0.006] |
+| input: narrative vs statements (**train**) | +0.086 [+0.033, +0.137] |
+| input: narrative vs statements (**held out**) | **−0.004 [−0.111, +0.100]** |
+| prior-year context, quiet | +0.001 [−0.039, +0.040] |
+| instruction to compare | −0.035 [−0.074, +0.004] |
+| risks only vs both sections | −0.032 [−0.085, +0.018] |
 
-**Four nulls and one effect, and the effect is the input.** Every attempt to move the
-number by changing how the model is *asked* failed with a tight interval; the one attempt
-to change what it *reads* succeeded.
+**Six interventions. One looked like an effect on the training split and did not survive
+the held-out one.** See [07](./07-conclusion.md).
 
 ---
 
